@@ -2,6 +2,7 @@ import com.infinitezerone.bgmplus.androidApplication
 
 plugins {
     alias(libs.plugins.bgmplus.android.application.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 androidApplication {
@@ -42,6 +43,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.browser)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -56,4 +60,9 @@ dependencies {
 
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.koin.test)
+    testImplementation(project(":core:testing"))
 }

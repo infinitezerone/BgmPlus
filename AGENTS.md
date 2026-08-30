@@ -25,7 +25,8 @@ BgmPlus/
 │   ├── database/               # Room 3 entities, DAOs, BgmDatabase
 │   ├── datastore/              # UserPreferences (commonMain); Keystore-encrypted AuthTokensDataSource (androidMain)
 │   ├── data/                   # Repositories: AuthRepository, ScheduleRepository, SubjectRepository
-│   └── designsystem/           # BgmPlusTheme, M3 tokens, CoverImage
+│   ├── designsystem/           # BgmPlusTheme, M3 tokens, CoverImage
+│   └── testing/                # Test doubles (Fake repositories), MainDispatcherRule, TestData
 ├── worker (moved)              # OAuth token-exchange proxy: maintained in a separate private Cloudflare Workers repo; deploys to bgmplus-auth.shadow2go.dpdns.org via its own CI
 └── feature/                    # (Planned, not yet scaffolded — convention plugin bgmplus.android.feature is ready)
     ├── schedule/               # Weekly on-air schedule & countdown
@@ -41,6 +42,7 @@ BgmPlus/
 3. **Single source of truth**: repositories in `:core:data` coordinate `:core:network` and `:core:database`; UI layers never touch network or database directly.
 4. **Convention plugins first**: new modules apply a `bgmplus.*` plugin from the catalog instead of hand-configuring Android/Kotlin settings.
 5. **Lightweight module docs**: module-level `README.md` files only declare **scope/responsibilities**, **dependency topology**, and **architectural invariants/redlines** — avoid internal implementation details or class inventories to prevent documentation rot.
+6. **Navigation**: app uses **Navigation 3** (`androidx.navigation3`) — `@Serializable` `NavKey` routes declared under `:app` `navigation/`, rendered by `NavDisplay`; per-tab `NavBackStack`s live in `BgmNavState` (exit-through-home, survives process death). Don't relocate route contracts or rewire the navigation stack without a deliberate decision.
 
 ## Coding Guidelines
 
