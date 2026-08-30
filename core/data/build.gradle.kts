@@ -25,6 +25,7 @@ kotlin {
         // 用 matching+configureEach 惰性匹配，避免脚本求值期源集尚不存在
         matching { it.name == "androidHostTest" }.configureEach {
             dependencies {
+                implementation(project(":core:testing"))
                 implementation(libs.kotlin.test)
                 implementation(libs.kotlinx.coroutines.test)
                 implementation(libs.ktor.client.mock)

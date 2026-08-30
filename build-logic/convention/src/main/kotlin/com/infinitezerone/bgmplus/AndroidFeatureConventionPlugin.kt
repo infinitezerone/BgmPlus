@@ -20,6 +20,9 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
             add("implementation", libs.findLibrary("androidx-lifecycle-runtime-compose").get())
             add("implementation", libs.findLibrary("androidx-lifecycle-viewmodel-compose").get())
             add("implementation", libs.findLibrary("koin-androidx-compose").get())
+
+            add("testImplementation", project(":core:testing"))
+            add("testImplementation", libs.findLibrary("kotlinx-coroutines-test").get())
         }
     }
 }
