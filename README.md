@@ -41,4 +41,3 @@ cd BgmPlus
 ## 🙏 致谢
 
 - [Bangumi 番组计划](https://bgm.tv) 与其开放的 API
-- [Now in Android](https://github.com/android/nowinandroid) — 架构参考
