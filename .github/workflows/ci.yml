@@ -15,18 +15,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      # 项目固定 JVM toolchain 25（Kotlin jvmTarget 25），CI JDK 必须对齐
+      - name: Set up JDK 25
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '25'
           cache: 'gradle'
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # AGP 9 迁移后：KMP 模块测试任务为 testAndroid，全量套件是 allTests（test 仅剩 app/designsystem 空壳）
       - name: Run Unit Tests
-        run: ./gradlew test --stacktrace
+        run: ./gradlew allTests --stacktrace
 
       - name: Assemble Debug APK
         run: ./gradlew assembleDebug --stacktrace
