@@ -6,6 +6,7 @@ import com.infinitezerone.bgmplus.core.data.di.dataModule
 import com.infinitezerone.bgmplus.core.database.di.databaseModule
 import com.infinitezerone.bgmplus.core.datastore.di.datastoreModule
 import com.infinitezerone.bgmplus.core.network.di.networkModule
+import com.infinitezerone.bgmplus.feature.subject.di.subjectModule
 import com.infinitezerone.bgmplus.feature.user.di.userModule
 import org.koin.dsl.module
 
@@ -17,6 +18,7 @@ fun appModule(enableNetworkLogging: Boolean = BuildConfig.DEBUG) =
             datastoreModule,
             dataModule,
             userModule,
+            subjectModule,
         )
         single { BgmDispatchers() }
     }

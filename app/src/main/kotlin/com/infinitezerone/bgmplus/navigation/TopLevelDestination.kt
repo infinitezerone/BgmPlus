@@ -15,8 +15,8 @@ import com.infinitezerone.bgmplus.feature.user.navigation.UserRoute
 import kotlinx.serialization.Serializable
 
 /**
- * 仍归属 `:app` 的顶层 Tab 路由契约；UserRoute 已随 feature:user 迁出，
- * schedule/subject 等后续建 feature 时同样迁往各自模块，`:app` 只做聚合引用
+ * 仍归属 `:app` 的顶层 Tab 路由契约；UserRoute、SubjectDetailRoute 已随各自 feature 迁出，
+ * schedule 等后续建 feature 时同样迁往各自模块，`:app` 只做聚合引用
  */
 @Serializable
 data object ScheduleRoute : NavKey
@@ -26,14 +26,6 @@ data object ExploreRoute : NavKey
 
 @Serializable
 data object RakuenRoute : NavKey
-
-/**
- * 二级页面路由契约定义（条目详情）
- */
-@Serializable
-data class SubjectDetailRoute(
-    val subjectId: Long,
-) : NavKey
 
 /**
  * 底部导航栏顶层 Tab 配置枚举；route 为各 feature/`:app` 声明的 NavKey
