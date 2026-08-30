@@ -63,6 +63,7 @@ BgmPlus/
 - `:app` / `:core:designsystem` use **AGP built-in Kotlin** — never re-add `org.jetbrains.kotlin.android`; Kotlin compile config goes through `android.compileOptions` (jvmTarget defaults to `targetCompatibility`).
 - KMP modules use `com.android.kotlin.multiplatform.library` (applied by `bgmplus.kmp.library`), which is **single-variant** (no debug/release) and has **no top-level `android {}` extension** — Android config (namespace, desugaring, host tests) goes through `Project.kmpAndroidLibrary { }` (finalizeDsl) in `build-logic`, and test source sets are named `androidHostTest` / `androidDeviceTest` with tests **opt-in** (`withHostTest` is already enabled in the convention plugin).
 - The android unit test task is `testAndroid` (per module) or `allTests` (KMP aggregate); `testDebugUnitTest` no longer exists.
+- **Green ≠ tested**: a misnamed or empty test source set fails silently (the `androidUnitTest` → `androidHostTest` incident shipped a build where tests ran zero cases, all green). After any build-script or source-set change, verify `build/test-results/<task>/*.xml` exists with `tests > 0` before claiming tests pass — BUILD SUCCESSFUL alone proves nothing.
 
 ### Compose & Design System
 - Always build under `BgmPlusTheme` using tokens from `:core:designsystem`; no hardcoded colors or typography in features.

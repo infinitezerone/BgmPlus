@@ -133,12 +133,13 @@ sequenceDiagram
     participant W as Worker (token 代理)
     participant KS as AndroidKeyStore
 
-    App->>App: SecureRandom 生成 state 并持久化
-    App->>CT: 打开授权页 (client_id + redirect_uri + state)
+    App->>App: 生成 verifier 并持久化，state = "v1." + sha256(verifier)
+    App->>CT: 打开授权页 (client_id + redirect_uri + state=指纹)
     CT->>BG: 用户登录并授权
     BG-->>App: 302 → bgmplus://oauth/callback?code&state
-    App->>App: 校验 state 与持久化值一致（防登录 CSRF）
-    App->>W: POST code + redirect_uri（不含任何凭据）
+    App->>App: 校验 state 与本地 verifier 指纹一致（防登录 CSRF）
+    App->>W: POST code + state + verifier（不含任何凭据）
+    W->>W: 校验 sha256(verifier) == state，不符即 400
     W->>BG: code + client_id + client_secret
     BG-->>W: access_token + refresh_token
     W-->>App: 原样回传
@@ -150,12 +151,12 @@ sequenceDiagram
 - **凭据不进 APK**：`client_secret` 仅存于 Worker（`wrangler secret put`），已通过 dex 级二进制扫描验证；`client_id` 为 OAuth 公开标识，按设计随包分发。
 - **Token 加密落盘**：AndroidKeyStore 硬件密钥 + AES-256-GCM，写入独立文件 `auth_tokens.pb`，与普通偏好隔离。
 - **备份排除**：`dataExtractionRules`（Android 12+）与 `fullBackupContent` 双规则排除 token 文件；Keystore 密钥不可迁移，跨设备恢复的密文自动失效。
-- **state 一次性校验**：发起授权时 SecureRandom 生成并持久化，回调时比对，抵御登录 CSRF。
+- **verifier 绑定（PKCE 等价）**：bgm.tv 无 PKCE，由 Worker 强制校验——state 携带 `sha256(verifier)` 公开指纹（兼做 CSRF 一次性比对），兑换须出示 verifier 原文；伪造回调过不了 state 比对，截获回调者缺 verifier 兑不了换，抵御登录 CSRF 与回调拦截两类攻击。
 - **统一鉴权注入**：Ktor Auth 插件自动附加 Bearer 并在 401 时经 Worker 刷新重试；业务代码不接触 token。
 - **日志纪律**：release 构建为 `LogLevel.NONE`；debug 为 `INFO`（仅请求生命周期，不含 header/body）。
 - **构建加固**：release 启用 R8 minify + resource shrink。
 
-**已知限制**：回调使用自定义 scheme（`bgmplus://`），scheme 抢注的理论拦截面已在文档中评估并接受；发布前计划升级为 App Links（Worker 代理域名可直接伺服 `assetlinks.json`）。`*.workers.dev` 域名在中国大陆不可达，代理固定走自定义域名。
+**已知限制**：回调使用自定义 scheme（`bgmplus://`），scheme 抢注与回调拦截已由 verifier 绑定闭合（伪造被 state 比对拒绝、拦截兑换被 verifier 缺失拒绝）；残余风险为攻击者已 root 受害设备并注入进程的场景，属客户端防御边界之外，已评估接受。发布前计划升级为 App Links（Worker 代理域名可直接伺服 `assetlinks.json`）。`*.workers.dev` 域名在中国大陆不可达，代理固定走自定义域名。
 
 ---
 
