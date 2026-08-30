@@ -1,6 +1,7 @@
 package com.infinitezerone.bgmplus.navigation
 
 import com.infinitezerone.bgmplus.feature.schedule.navigation.ScheduleRoute
+import com.infinitezerone.bgmplus.feature.subject.navigation.SubjectDetailRoute
 import com.infinitezerone.bgmplus.feature.user.navigation.UserRoute
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

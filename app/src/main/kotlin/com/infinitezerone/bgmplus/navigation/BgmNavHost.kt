@@ -5,10 +5,11 @@ import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.infinitezerone.bgmplus.feature.schedule.navigation.scheduleEntry
+import com.infinitezerone.bgmplus.feature.subject.navigation.SubjectDetailRoute
+import com.infinitezerone.bgmplus.feature.subject.navigation.subjectEntry
 import com.infinitezerone.bgmplus.feature.user.navigation.userEntry
 import com.infinitezerone.bgmplus.ui.screens.ExploreScreen
 import com.infinitezerone.bgmplus.ui.screens.RakuenScreen
-import com.infinitezerone.bgmplus.ui.screens.SubjectDetailScreen
 
 @Composable
 fun BgmNavHost(
@@ -27,6 +28,8 @@ fun BgmNavHost(
 
                     userEntry()
 
+                    subjectEntry(onBackClick = { navState.goBack() })
+
                     entry<ExploreRoute> {
                         ExploreScreen(
                             onSubjectClick = { subjectId ->
@@ -37,13 +40,6 @@ fun BgmNavHost(
 
                     entry<RakuenRoute> {
                         RakuenScreen()
-                    }
-
-                    entry<SubjectDetailRoute> { route ->
-                        SubjectDetailScreen(
-                            subjectId = route.subjectId,
-                            onBackClick = { navState.goBack() },
-                        )
                     }
                 },
             ),
