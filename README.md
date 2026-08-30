@@ -156,7 +156,7 @@ sequenceDiagram
 - **日志纪律**：release 构建为 `LogLevel.NONE`；debug 为 `INFO`（仅请求生命周期，不含 header/body）。
 - **构建加固**：release 启用 R8 minify + resource shrink。
 
-**已知限制**：回调使用自定义 scheme（`bgmplus://`），scheme 抢注与回调拦截已由 verifier 绑定闭合（伪造被 state 比对拒绝、拦截兑换被 verifier 缺失拒绝）；残余风险为攻击者已 root 受害设备并注入进程的场景，属客户端防御边界之外，已评估接受。发布前计划升级为 App Links（Worker 代理域名可直接伺服 `assetlinks.json`）。`*.workers.dev` 域名在中国大陆不可达，代理固定走自定义域名。
+**已知限制**：回调使用自定义 scheme（`bgmplus://`），scheme 抢注与回调拦截已由 verifier 绑定闭合（伪造被 state 比对拒绝、拦截兑换被 verifier 缺失拒绝）；残余风险为攻击者已 root 受害设备并注入进程的场景，属客户端防御边界之外，已评估接受。App Links（`assetlinks.json`）为可选增强——安全收益已被 verifier 覆盖，且依赖尚不存在的正式发布签名证书，暂不实施；若未来配置签名可顺路启用。`*.workers.dev` 域名在中国大陆不可达，代理固定走自定义域名。
 
 ---
 
