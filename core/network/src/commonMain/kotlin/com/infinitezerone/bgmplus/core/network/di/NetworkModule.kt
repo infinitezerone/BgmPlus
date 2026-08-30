@@ -9,10 +9,7 @@ import com.infinitezerone.bgmplus.core.network.BgmHttpClient
 import com.infinitezerone.bgmplus.core.network.BgmTokenPair
 import com.infinitezerone.bgmplus.core.network.BgmTokenService
 import org.koin.core.module.Module
-import org.koin.core.qualifier.named
 import org.koin.dsl.module
-
-private val tokenClient = named("bgm_token_client")
 
 /**
  * @param enableNetworkLogging 仅由 app 层传入 BuildConfig.DEBUG
@@ -20,14 +17,18 @@ private val tokenClient = named("bgm_token_client")
 fun networkModule(enableNetworkLogging: Boolean = false): Module =
     module {
         single { BgmAuthConfig() }
-        // token client：无 Auth 插件，专供 BgmTokenService 访问 Worker
-        single(tokenClient) {
-            BgmHttpClient.create(tokenProvider = get(), enableLogging = enableNetworkLogging)
-        }
+
+        // Token 服务专用的独立 client（无 Auth 插件，专供访问 Worker 兑换/刷新），直接收敛在工厂内部
         single {
-            BgmTokenService(client = get(tokenClient), config = get())
+            val tokenClient =
+                BgmHttpClient.create(
+                    tokenProvider = get(),
+                    enableLogging = enableNetworkLogging,
+                )
+            BgmTokenService(client = tokenClient, config = get())
         }
-        // 业务 client：Bearer 自动注入 + 401 时经 Worker 刷新重试
+
+        // 业务主 client：Bearer 自动注入 + 401 时经 Worker 刷新重试
         single {
             BgmHttpClient.create(
                 tokenProvider = get(),

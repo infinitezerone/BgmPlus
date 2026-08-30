@@ -10,7 +10,6 @@ import com.infinitezerone.bgmplus.core.network.TokenProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.serialization.SerializationException
 
 interface AuthRepository {
@@ -77,7 +76,9 @@ class AuthRepositoryImpl(
     // 仅看偏好会呈现"已登录但无凭据"的假登录态（API 全 401 且无法刷新）。
     override val isLoggedIn: Flow<Boolean> =
         combine(
-            userPreferences.userPreferences.map { it.isLoggedIn },
+            userPreferences.userPreferences,
             tokenProvider.hasTokens,
-        ) { markedLoggedIn, hasTokens -> markedLoggedIn && hasTokens }
+        ) { prefs, hasTokens ->
+            prefs.isLoggedIn && hasTokens
+        }
 }
