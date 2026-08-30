@@ -11,16 +11,14 @@ import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
+import com.infinitezerone.bgmplus.feature.schedule.navigation.ScheduleRoute
 import com.infinitezerone.bgmplus.feature.user.navigation.UserRoute
 import kotlinx.serialization.Serializable
 
 /**
- * 仍归属 `:app` 的顶层 Tab 路由契约；UserRoute 已随 feature:user 迁出，
- * schedule/subject 等后续建 feature 时同样迁往各自模块，`:app` 只做聚合引用
+ * 仍归属 `:app` 的顶层 Tab 路由契约；UserRoute、ScheduleRoute 已分别随
+ * feature:user、feature:schedule 迁出，subject 等后续建 feature 时同样迁往各自模块，`:app` 只做聚合引用
  */
-@Serializable
-data object ScheduleRoute : NavKey
-
 @Serializable
 data object ExploreRoute : NavKey
 
