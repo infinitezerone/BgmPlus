@@ -11,6 +11,7 @@ on:
     paths-ignore:
       - '**.md'
       - '.gitignore'
+  workflow_dispatch:
 
 # 同分支新推送取消仍在跑的旧任务，避免排队浪费
 concurrency:
