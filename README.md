@@ -117,13 +117,13 @@ graph TD
 | [**:core:datastore**](core/datastore/README.md) | KMP Core | 强类型 `DataStore<UserPreferences>` 用户配置与登录态；OAuth Token 经 AndroidKeyStore AES-GCM 加密独立存储 | [查看 README](core/datastore/README.md) |
 | [**:core:data**](core/data/README.md) | KMP Core | 单一可信源（SSOT）Repository 仓库实现，协调网络与本地缓存 | [查看 README](core/data/README.md) |
 | [**:core:designsystem**](core/designsystem/README.md) | Android Library | Jetpack Compose Material 3 Expressive 主题、色彩、排版与原子 UI 组件 | [查看 README](core/designsystem/README.md) |
-| [**worker/**](worker/README.md) | Cloudflare Worker | OAuth token 代理：服务端注入 `client_secret`，授权码兑换与 token 刷新的无状态转发 | [查看 README](worker/README.md) |
+| **worker (独立服务)** | Cloudflare Worker | OAuth token 代理：服务端注入 `client_secret`，授权码兑换与 token 刷新的无状态转发（独立私有仓库维护，部署至 `bgmplus-auth.shadow2go.dpdns.org`） | - |
 
 ---
 
 ## 🔐 认证与安全架构 (Auth & Security)
 
-Bangumi OAuth 要求在 token 端点提交 `client_secret` 且不支持 PKCE，因此本项目将兑换环节收口到自有的 **Cloudflare Worker 代理**（`worker/`）：`client_secret` 只存在于 Worker 的加密 secret 存储，APK 内仅有公开的 `client_id`。
+Bangumi OAuth 要求在 token 端点提交 `client_secret` 且不支持 PKCE，因此本项目将兑换环节收口到专用的 **Cloudflare Worker 代理服务**（部署于 `bgmplus-auth.shadow2go.dpdns.org`）：`client_secret` 只存在于 Worker 的加密 secret 存储，APK 内仅有公开的 `client_id`。
 
 ```mermaid
 sequenceDiagram
@@ -155,7 +155,7 @@ sequenceDiagram
 - **日志纪律**：release 构建为 `LogLevel.NONE`；debug 为 `INFO`（仅请求生命周期，不含 header/body）。
 - **构建加固**：release 启用 R8 minify + resource shrink。
 
-**已知限制**：回调使用自定义 scheme（`bgmplus://`），scheme 抢注的理论拦截面已在文档中评估并接受；发布前计划升级为 App Links（`worker/` 域名可直接伺服 `assetlinks.json`）。`*.workers.dev` 域名在中国大陆不可达，代理固定走自定义域名。
+**已知限制**：回调使用自定义 scheme（`bgmplus://`），scheme 抢注的理论拦截面已在文档中评估并接受；发布前计划升级为 App Links（Worker 代理域名可直接伺服 `assetlinks.json`）。`*.workers.dev` 域名在中国大陆不可达，代理固定走自定义域名。
 
 ---
 
@@ -167,7 +167,7 @@ sequenceDiagram
 * **网络引擎**: Ktor 3.5.x Client + `kotlinx.serialization` (JSON)
 * **本地存储**: AndroidX Room 3.0.x + AndroidX Proto DataStore
 * **凭据安全**: AndroidKeyStore (AES-256-GCM) 加密 DataStore + 备份排除规则
-* **后端基础设施**: Cloudflare Worker（OAuth token 代理，无状态转发，`worker/` 目录）
+* **后端基础设施**: Cloudflare Worker（OAuth token 代理，无状态转发，独立仓库维护）
 * **图片加载**: Coil 3.x (Ktor3 集成)
 * **依赖注入**: Koin 4.2.x (`koin-android`, `koin-androidx-compose`, `koin-compose-navigation3`)
 * **异步与流**: Kotlin Coroutines + Flow
@@ -177,20 +177,21 @@ sequenceDiagram
 ## 🚀 构建与验证 (Build & Test)
 
 ```bash
-# 编译 Debug APK
+# 1. 快速代码格式检查 (Spotless + ktlint)
+./gradlew spotlessCheck
+
+# 2. 自动格式化代码
+./gradlew spotlessApply
+
+# 3. 运行全工程单元测试 (KMP 聚合测试套件)
+./gradlew allTests
+
+# 4. 运行指定单模块单元测试 (以 :core:data 为例)
+./gradlew :core:data:testAndroid
+
+# 5. 编译 Debug APK
 ./gradlew assembleDebug
 
-# 编译 Release APK（R8 混淆 + 资源收缩）
+# 6. 编译 Release APK（R8 混淆 + 资源收缩）
 ./gradlew assembleRelease
-
-# 运行全工程单元测试
-./gradlew test
-
-# 运行登录模块单元测试（纯 JVM，无需模拟器）
-./gradlew :core:data:testDebugUnitTest
-
-# 清理构建缓存
-./gradlew clean
 ```
-
-OAuth 代理的部署与本地调试见 [worker/README.md](worker/README.md)。

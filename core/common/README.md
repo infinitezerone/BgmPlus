@@ -1,24 +1,11 @@
-# Module `:core:common`
+# `:core:common`
 
-## 📖 模块概述
-`:core:common` 提供全工程通用的纯 Kotlin 工具类、协程调度器注入模型、统一的错误与结果封装包装器。
+## 🎯 模块职责
+通用工具与基础抽象层，提供全工程通用的协程调度器注入模型（`BgmDispatchers`）、结果封装（`AppResult<T>`）及通用工具类。
 
----
+## 🏛️ 依赖关系
+* **依赖的上游**：`:core:model`
+* **被谁依赖**：`:core:network`, `:core:database`, `:core:datastore`, `:core:data`, 所有 `:feature:*`, `:app`
 
-## 🏛️ 依赖关系图 (Dependency Graph)
-
-```mermaid
-graph TD
-    ConsumerModules["业务与基础设施模块"]
-    CoreCommon[":core:common"]
-
-    ConsumerModules --> CoreCommon
-```
-
----
-
-## 🔑 核心工具与类
-
-* **`AppResult<T>`**：统一领域结果封装密封接口（`Success<T>`、`Error`、`Loading`），支持 `asResult()` 流变换。
-* **`BgmDispatchers` / `Dispatcher`**：标准协程调度器注解与注入接口（`IO`、`Default`、`Main`）。
-* **`TimeUtils`**：跨平台日期时间转换工具。
+## ⚠️ 架构红线与约束
+1. 仅包含纯 Kotlin 通用工具与无状态辅助函数，严禁包含特定业务领域逻辑或 UI 表现逻辑。

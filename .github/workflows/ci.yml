@@ -26,6 +26,9 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Run Code Style Checks (Spotless)
+        run: ./gradlew spotlessCheck --stacktrace
+
       # AGP 9 迁移后：KMP 模块测试任务为 testAndroid，全量套件是 allTests（test 仅剩 app/designsystem 空壳）
       - name: Run Unit Tests
         run: ./gradlew allTests --stacktrace

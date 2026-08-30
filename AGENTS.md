@@ -40,6 +40,7 @@ BgmPlus/
 2. **`:core:model` is pure Kotlin**: no `android.*` or UI framework dependencies.
 3. **Single source of truth**: repositories in `:core:data` coordinate `:core:network` and `:core:database`; UI layers never touch network or database directly.
 4. **Convention plugins first**: new modules apply a `bgmplus.*` plugin from the catalog instead of hand-configuring Android/Kotlin settings.
+5. **Lightweight module docs**: module-level `README.md` files only declare **scope/responsibilities**, **dependency topology**, and **architectural invariants/redlines** — avoid internal implementation details or class inventories to prevent documentation rot.
 
 ## Coding Guidelines
 

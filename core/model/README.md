@@ -1,25 +1,11 @@
-# Module `:core:model`
+# `:core:model`
 
-## 📖 模块概述
-`:core:model` 是纯 Kotlin 领域数据模型层（Kotlin Multiplatform）。本模块保持 **0 外部系统依赖**（不依赖任何 Android SDK、Ktor 或 UI 框架），仅包含领域业务模型与强类型枚举。
+## 🎯 模块职责
+领域核心数据模型层，定义全应用通用的业务实体（如 Subject、Episode、AirSchedule、UserProfile 等）与纯 Kotlin 数据结构。
 
----
+## 🏛️ 依赖关系
+* **依赖的上游**：无（底层根模块）
+* **被谁依赖**：`:core:common`, `:core:network`, `:core:database`, `:core:datastore`, `:core:data`, `:core:designsystem`, 所有 `:feature:*`, `:app`
 
-## 🏛️ 依赖关系图 (Dependency Graph)
-
-```mermaid
-graph TD
-    ConsumerModules["其他业务/基础设施模块<br>(:core:data, :core:network, :feature:*, etc.)"]
-    CoreModel[":core:model"]
-
-    ConsumerModules --> CoreModel
-```
-
----
-
-## 🔑 核心数据模型
-
-* **`Subject` / `SubjectType`**：番剧/条目核心模型（包含名称、评分、封面、类型等）。
-* **`Episode` / `EpisodeType`**：剧集/单集信息模型。
-* **`AirSchedule` / `AirSite`**：放送时刻表、站点播放源模型。
-* **`UserProfile` / `UserCollection` / `CollectionType`**：用户资料与追番收藏状态。
+## ⚠️ 架构红线与约束
+1. 保持纯 Kotlin（0 外部系统依赖），严禁引入任何 `android.*`、Ktor、Room 或 Compose/UI 相关依赖。
