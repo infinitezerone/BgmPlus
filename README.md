@@ -34,18 +34,6 @@ cd BgmPlus
 # 产物：app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## 🔨 参与开发
-
-技术栈：Kotlin Multiplatform · Jetpack Compose (Material 3 Expressive) · Ktor 3 · Room 3 · Coil 3 · Koin 4
-
-构建流程、模块架构与编码规范见 [AGENTS.md](AGENTS.md)。
-
-```bash
-./gradlew spotlessCheck        # 代码风格检查
-./gradlew allTests             # 全量单元测试
-./gradlew :app:assembleDebug   # 编译调试 APK
-```
-
 ## 📄 声明
 
 本项目为个人学习用途的开源作品，仅使用 Bangumi 开放 API；账号数据仅存于本机，使用本软件产生的任何问题由使用者自行承担。
