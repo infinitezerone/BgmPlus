@@ -33,7 +33,7 @@ fun BgmApp(
             if (navState.currentKey is TopLevelRoute) {
                 NavigationBar {
                     TopLevelDestination.entries.forEach { destination ->
-                        val selected = destination.route == navState.topLevelRoute
+                        val selected = destination.route == navState.currentTopLevelKey
 
                         NavigationBarItem(
                             selected = selected,

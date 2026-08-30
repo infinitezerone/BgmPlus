@@ -1,49 +1,39 @@
 package com.infinitezerone.bgmplus.navigation
 
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSerializable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.runtime.serialization.NavKeySerializer
-import androidx.savedstate.compose.serialization.serializers.MutableStateSerializer
 
 /**
- * 创建可在配置变更与进程死亡后恢复的导航状态（参考 nav3 官方 multiple-backstacks recipe）：
- * 每个顶层 Tab 持有独立返回栈，切 Tab 时互不覆盖；返回在 Tab 根部时回到起始 Tab
- * （exit through home），在起始 Tab 根部时由系统正常退出应用。
+ * 创建可在配置变更与进程死亡后恢复的导航状态（对齐 NiA 的 core:navigation 模式）：
+ * [BgmNavState.topLevelStack] 记录顶层 Tab 的切换历史（返回键沿历史回退），
+ * 每个 Tab 另有独立子返回栈；用户始终经由起始 Tab 退出应用（exit through home）。
  */
 @Composable
 fun rememberBgmNavState(
     startRoute: TopLevelRoute,
     topLevelRoutes: Set<TopLevelRoute>,
 ): BgmNavState {
-    val topLevelRoute =
-        rememberSerializable(
-            startRoute,
-            topLevelRoutes,
-            serializer = MutableStateSerializer(NavKeySerializer()),
-        ) {
-            mutableStateOf<NavKey>(startRoute)
-        }
-
-    // 为每个顶层 Tab 建立独立返回栈
-    val backStacks: Map<NavKey, NavBackStack<NavKey>> =
+    val topLevelStack = rememberNavBackStack(startRoute)
+    val subStacks: Map<NavKey, NavBackStack<NavKey>> =
         topLevelRoutes.associateWith { key -> rememberNavBackStack(key) }
 
     return remember(startRoute, topLevelRoutes) {
         BgmNavState(
             startRoute = startRoute,
-            topLevelRoute = topLevelRoute,
-            backStacks = backStacks,
+            topLevelStack = topLevelStack,
+            subStacks = subStacks,
         )
     }
 }
@@ -53,47 +43,88 @@ fun rememberBgmNavState(
  */
 class BgmNavState(
     val startRoute: TopLevelRoute,
-    topLevelRoute: MutableState<NavKey>,
-    private val backStacks: Map<NavKey, NavBackStack<NavKey>>,
+    val topLevelStack: NavBackStack<NavKey>,
+    private val subStacks: Map<NavKey, NavBackStack<NavKey>>,
 ) {
     /** 当前选中的顶层 Tab */
-    var topLevelRoute: NavKey by topLevelRoute
+    val currentTopLevelKey: NavKey by derivedStateOf { topLevelStack.last() }
 
-    /** 当前 Tab 的栈顶 key，即屏幕上可见的目的地 */
-    val currentKey: NavKey
-        get() = backStacks.getValue(topLevelRoute).lastOrNull() ?: topLevelRoute
+    val topLevelKeys: Set<NavKey>
+        get() = subStacks.keys
+
+    /** 当前 Tab 的子返回栈 */
+    @get:VisibleForTesting
+    val currentSubStack: NavBackStack<NavKey>
+        get() =
+            subStacks[currentTopLevelKey]
+                ?: error("Sub stack for $currentTopLevelKey does not exist")
+
+    /** 当前 Tab 栈顶 key，即屏幕上可见的目的地 */
+    val currentKey: NavKey by derivedStateOf { currentSubStack.last() }
 
     /**
-     * 底层 Tab key（已在返回栈表中注册）则切换 Tab；否则压入当前 Tab 的返回栈
+     * 重复点击当前 Tab → 其子栈重置到根部；点击其他 Tab → 记入顶层历史并切换；
+     * 其余 key → 以 single-top 方式压入当前 Tab 子栈
      */
     fun navigateTo(key: NavKey) {
-        if (key in backStacks.keys) {
-            topLevelRoute = key
-        } else {
-            backStacks.getValue(topLevelRoute).add(key)
+        when (key) {
+            currentTopLevelKey -> clearSubStack()
+            in topLevelKeys -> goToTopLevel(key)
+            else -> goToKey(key)
         }
     }
 
     fun goBack() {
-        val stack = backStacks.getValue(topLevelRoute)
-        val currentRoute = stack.last()
-        if (currentRoute == topLevelRoute) {
-            // 已在当前 Tab 根部：回到起始 Tab（exit through home）
-            topLevelRoute = startRoute
-        } else {
-            stack.removeLastOrNull()
+        when (currentKey) {
+            // 起始 Tab 根部是应用出口，NavDisplay 在无可弹出条目时不会回调 onBack
+            startRoute -> error("You cannot go back from the start route")
+            // 已在当前 Tab 根部：沿顶层历史回退到上一个 Tab
+            currentTopLevelKey -> topLevelStack.removeLastOrNull()
+            else -> currentSubStack.removeLastOrNull()
+        }
+    }
+
+    private fun goToKey(key: NavKey) {
+        currentSubStack.apply {
+            // single-top：已在栈内则先移除，保证同一目的地不重复入栈
+            remove(key)
+            add(key)
+        }
+    }
+
+    private fun goToTopLevel(key: NavKey) {
+        topLevelStack.apply {
+            if (key == startRoute) {
+                // 回到起始 Tab 时清空顶层历史，使其重新成为唯一出口
+                clear()
+            } else {
+                remove(key)
+            }
+            add(key)
+        }
+    }
+
+    private fun clearSubStack() {
+        currentSubStack.apply {
+            if (size > 1) subList(1, size).clear()
         }
     }
 
     /**
-     * 将导航状态转换为带装饰器的条目列表供 [androidx.navigation3.ui.NavDisplay] 渲染。
-     * 每个 Tab 使用独立的 SaveableStateHolder，保证跨 Tab 的界面状态互不覆盖。
+     * 将导航状态转换为带装饰器的条目列表供 [androidx.navigation3.ui.NavDisplay] 渲染：
+     * SaveableStateHolder 保存各条目的界面状态，ViewModelStore 让每个条目拥有独立的
+     * ViewModel 作用域（feature 的 ViewModel 应经 entry 内的 viewModel() 获取而非 Activity 级）；
+     * 起始 Tab 的条目始终在列（exit through home），其余 Tab 的栈状态仍被保留，只是不参与渲染。
      */
     @Composable
-    fun toDecoratedEntries(entryProvider: (NavKey) -> NavEntry<NavKey>): List<NavEntry<NavKey>> {
+    fun toDecoratedEntries(entryProvider: (NavKey) -> NavEntry<NavKey>): SnapshotStateList<NavEntry<NavKey>> {
         val decoratedEntries =
-            backStacks.mapValues { (_, stack) ->
-                val decorators = listOf(rememberSaveableStateHolderNavEntryDecorator<NavKey>())
+            subStacks.mapValues { (_, stack) ->
+                val decorators =
+                    listOf(
+                        rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
+                        rememberViewModelStoreNavEntryDecorator<NavKey>(),
+                    )
                 rememberDecoratedNavEntries(
                     backStack = stack,
                     entryDecorators = decorators,
@@ -101,13 +132,8 @@ class BgmNavState(
                 )
             }
 
-        // 只有起始 Tab 与当前 Tab 处于使用中；其余 Tab 的栈状态仍被保留，只是不参与渲染
-        val topLevelRoutesInUse =
-            if (topLevelRoute == startRoute) {
-                listOf(startRoute)
-            } else {
-                listOf(startRoute, topLevelRoute)
-            }
-        return topLevelRoutesInUse.flatMap { decoratedEntries[it] ?: emptyList() }
+        return topLevelStack
+            .flatMap { decoratedEntries[it] ?: emptyList() }
+            .toMutableStateList()
     }
 }
