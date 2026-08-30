@@ -26,7 +26,7 @@ BgmPlus/
 │   ├── datastore/              # UserPreferences (commonMain); Keystore-encrypted AuthTokensDataSource (androidMain)
 │   ├── data/                   # Repositories: AuthRepository, ScheduleRepository, SubjectRepository
 │   └── designsystem/           # BgmPlusTheme, M3 tokens, CoverImage
-├── worker (moved)              # OAuth token-exchange proxy: standalone private repo infinitezerone/bgmplus-auth (Cloudflare Workers, own stack + CI); production bgmplus-auth.shadow2go.dpdns.org
+├── worker (moved)              # OAuth token-exchange proxy: maintained in a separate private Cloudflare Workers repo; deploys to bgmplus-auth.shadow2go.dpdns.org via its own CI
 └── feature/                    # (Planned, not yet scaffolded — convention plugin bgmplus.android.feature is ready)
     ├── schedule/               # Weekly on-air schedule & countdown
     ├── subject/                # Subject detail & episode list
