@@ -22,8 +22,8 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
  */
 @Composable
 fun rememberBgmNavState(
-    startRoute: TopLevelRoute,
-    topLevelRoutes: Set<TopLevelRoute>,
+    startRoute: NavKey,
+    topLevelRoutes: Set<NavKey>,
 ): BgmNavState {
     val topLevelStack = rememberNavBackStack(startRoute)
     val subStacks: Map<NavKey, NavBackStack<NavKey>> =
@@ -42,7 +42,7 @@ fun rememberBgmNavState(
  * 导航状态持有者；仅通过 [navigateTo]/[goBack] 修改自身状态
  */
 class BgmNavState(
-    val startRoute: TopLevelRoute,
+    val startRoute: NavKey,
     val topLevelStack: NavBackStack<NavKey>,
     private val subStacks: Map<NavKey, NavBackStack<NavKey>>,
 ) {

@@ -4,23 +4,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
-import com.infinitezerone.bgmplus.LoginViewModel
+import com.infinitezerone.bgmplus.feature.user.navigation.userEntry
 import com.infinitezerone.bgmplus.ui.screens.ExploreScreen
 import com.infinitezerone.bgmplus.ui.screens.RakuenScreen
 import com.infinitezerone.bgmplus.ui.screens.ScheduleScreen
 import com.infinitezerone.bgmplus.ui.screens.SubjectDetailScreen
-import com.infinitezerone.bgmplus.ui.screens.UserScreen
 
 @Composable
 fun BgmNavHost(
     navState: BgmNavState,
-    loginViewModel: LoginViewModel,
     modifier: Modifier = Modifier,
 ) {
     NavDisplay(
         entries =
             navState.toDecoratedEntries(
                 entryProvider {
+                    userEntry()
+
                     entry<ScheduleRoute> {
                         ScheduleScreen(
                             onSubjectClick = { subjectId ->
@@ -39,10 +39,6 @@ fun BgmNavHost(
 
                     entry<RakuenRoute> {
                         RakuenScreen()
-                    }
-
-                    entry<UserRoute> {
-                        UserScreen(viewModel = loginViewModel)
                     }
 
                     entry<SubjectDetailRoute> { route ->

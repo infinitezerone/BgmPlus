@@ -5,12 +5,19 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.material3.SnackbarHostState
+import androidx.lifecycle.lifecycleScope
+import com.infinitezerone.bgmplus.core.common.onError
+import com.infinitezerone.bgmplus.core.common.onSuccess
+import com.infinitezerone.bgmplus.core.data.repository.AuthRepository
 import com.infinitezerone.bgmplus.core.designsystem.theme.BgmPlusTheme
 import com.infinitezerone.bgmplus.ui.BgmApp
-import org.koin.androidx.viewmodel.ext.android.viewModel
+import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
-    private val loginViewModel: LoginViewModel by viewModel()
+    private val authRepository: AuthRepository by inject()
+    private val snackbarHostState = SnackbarHostState()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -18,7 +25,7 @@ class MainActivity : ComponentActivity() {
         handleOAuthIntent(intent)
         setContent {
             BgmPlusTheme {
-                BgmApp(loginViewModel = loginViewModel)
+                BgmApp(snackbarHostState = snackbarHostState)
             }
         }
     }
@@ -31,10 +38,15 @@ class MainActivity : ComponentActivity() {
     private fun handleOAuthIntent(intent: Intent?) {
         val data = intent?.data ?: return
         if (data.scheme == "bgmplus" && data.host == "oauth" && data.path == "/callback") {
-            loginViewModel.handleOAuthCallback(
-                code = data.getQueryParameter("code"),
-                state = data.getQueryParameter("state"),
-            )
+            val code = data.getQueryParameter("code")
+            val state = data.getQueryParameter("state")
+            // 深链回调是 app 级事件（不依赖任何页面存活），登录结果经全局 Snackbar 反馈
+            lifecycleScope.launch {
+                authRepository
+                    .completeLogin(code, state)
+                    .onSuccess { snackbarHostState.showSnackbar("登录成功 🎉") }
+                    .onError { _, message -> snackbarHostState.showSnackbar(message) }
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ package com.infinitezerone.bgmplus.navigation
 
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
+import com.infinitezerone.bgmplus.feature.user.navigation.UserRoute
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test

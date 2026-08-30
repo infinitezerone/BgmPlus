@@ -11,28 +11,21 @@ import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
+import com.infinitezerone.bgmplus.feature.user.navigation.UserRoute
 import kotlinx.serialization.Serializable
 
 /**
- * 顶层主 Tab 路由契约的公共父类型：仅用于收紧 [TopLevelDestination.route] 的类型边界，
- * 条目详情等二级路由不在此列
- */
-sealed interface TopLevelRoute : NavKey
-
-/**
- * 顶层主 Tab 路由契约定义；Navigation 3 的 NavKey 必须 @Serializable 以支持返回栈状态保存
+ * 仍归属 `:app` 的顶层 Tab 路由契约；UserRoute 已随 feature:user 迁出，
+ * schedule/subject 等后续建 feature 时同样迁往各自模块，`:app` 只做聚合引用
  */
 @Serializable
-data object ScheduleRoute : TopLevelRoute
+data object ScheduleRoute : NavKey
 
 @Serializable
-data object ExploreRoute : TopLevelRoute
+data object ExploreRoute : NavKey
 
 @Serializable
-data object RakuenRoute : TopLevelRoute
-
-@Serializable
-data object UserRoute : TopLevelRoute
+data object RakuenRoute : NavKey
 
 /**
  * 二级页面路由契约定义（条目详情）
@@ -43,13 +36,13 @@ data class SubjectDetailRoute(
 ) : NavKey
 
 /**
- * 底部导航栏顶层 Tab 配置枚举
+ * 底部导航栏顶层 Tab 配置枚举；route 为各 feature/`:app` 声明的 NavKey
  */
 enum class TopLevelDestination(
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
     val labelText: String,
-    val route: TopLevelRoute,
+    val route: NavKey,
 ) {
     SCHEDULE(
         selectedIcon = Icons.Filled.CalendarMonth,

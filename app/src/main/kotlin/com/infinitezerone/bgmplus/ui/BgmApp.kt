@@ -6,19 +6,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.infinitezerone.bgmplus.LoginViewModel
 import com.infinitezerone.bgmplus.navigation.BgmNavHost
 import com.infinitezerone.bgmplus.navigation.ScheduleRoute
 import com.infinitezerone.bgmplus.navigation.TopLevelDestination
-import com.infinitezerone.bgmplus.navigation.TopLevelRoute
 import com.infinitezerone.bgmplus.navigation.rememberBgmNavState
 
 @Composable
 fun BgmApp(
-    loginViewModel: LoginViewModel,
+    snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
 ) {
     val navState =
@@ -28,9 +28,10 @@ fun BgmApp(
         )
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            // 仅当前可见目的地是顶层 Tab 时显示底部导航栏，进入详情等二级页面时隐藏
-            if (navState.currentKey is TopLevelRoute) {
+            // 仅当前可见目的地是顶层 Tab 根部时显示底部导航栏，进入二级页面时隐藏
+            if (navState.currentKey in navState.topLevelKeys) {
                 NavigationBar {
                     TopLevelDestination.entries.forEach { destination ->
                         val selected = destination.route == navState.currentTopLevelKey
@@ -52,10 +53,6 @@ fun BgmApp(
         },
         modifier = modifier.fillMaxSize(),
     ) { innerPadding ->
-        BgmNavHost(
-            navState = navState,
-            loginViewModel = loginViewModel,
-            modifier = Modifier.padding(innerPadding),
-        )
+        BgmNavHost(navState = navState, modifier = Modifier.padding(innerPadding))
     }
 }

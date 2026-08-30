@@ -1,5 +1,6 @@
 package com.infinitezerone.bgmplus.navigation
 
+import com.infinitezerone.bgmplus.feature.user.navigation.UserRoute
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue

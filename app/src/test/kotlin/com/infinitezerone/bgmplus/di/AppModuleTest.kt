@@ -1,12 +1,12 @@
 package com.infinitezerone.bgmplus.di
 
-import com.infinitezerone.bgmplus.LoginViewModel
 import com.infinitezerone.bgmplus.core.data.repository.AuthRepository
 import com.infinitezerone.bgmplus.core.data.repository.ScheduleRepository
 import com.infinitezerone.bgmplus.core.data.repository.SubjectRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeAuthRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeScheduleRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeSubjectRepository
+import com.infinitezerone.bgmplus.feature.user.UserViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -31,19 +31,19 @@ class AppModuleTest : KoinTest {
     }
 
     @Test
-    fun verifyLoginViewModelWithAuthRepository() =
+    fun verifyUserViewModelWithAuthRepository() =
         runTest {
             val fakeAuth = FakeAuthRepository(initialLoggedIn = false)
             startKoin {
                 modules(
                     module {
                         single<AuthRepository> { fakeAuth }
-                        single { LoginViewModel(get()) }
+                        single { UserViewModel(get()) }
                     },
                 )
             }
 
-            val viewModel: LoginViewModel = get()
+            val viewModel: UserViewModel = get()
             assertNotNull(viewModel)
             assertEquals(false, viewModel.isLoggedIn.first())
         }
