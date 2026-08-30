@@ -1,0 +1,27 @@
+package com.infinitezerone.bgmplus.core.datastore
+
+import com.infinitezerone.bgmplus.core.network.TokenProvider
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+/** TokenProvider 的落盘实现：经 AndroidKeyStore AES-GCM 加密的独立 DataStore */
+class KeystoreTokenProvider(
+    private val authTokens: AuthTokensDataSource,
+) : TokenProvider {
+    override suspend fun getAccessToken(): String? = authTokens.getAccessToken()
+
+    override suspend fun getRefreshToken(): String? = authTokens.getRefreshToken()
+
+    override val hasTokens: Flow<Boolean> = authTokens.tokens.map { it != null }
+
+    override suspend fun saveTokens(
+        accessToken: String,
+        refreshToken: String,
+    ) {
+        authTokens.saveTokens(accessToken, refreshToken)
+    }
+
+    override suspend fun clearTokens() {
+        authTokens.clear()
+    }
+}

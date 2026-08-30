@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 及以下的自动备份规则：排除加密 token 文件 -->
+<full-backup-content>
+    <exclude
+        domain="file"
+        path="datastore/auth_tokens.pb" />
+</full-backup-content>

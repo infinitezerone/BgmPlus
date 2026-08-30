@@ -1,0 +1,14 @@
+# kotlinx.serialization：保留 @Serializable 类生成的 serializer
+# （kotlinx-serialization 自带 consumer rules，以下为官方推荐的兜底规则）
+-keepattributes *Annotation*, InnerClasses, Signature
+-dontnote kotlinx.serialization.**
+-keep,includedescriptorclasses class com.infinitezerone.bgmplus.**$$serializer { *; }
+-keepclassmembers class com.infinitezerone.bgmplus.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.infinitezerone.bgmplus.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# Kotlinx Coroutines / Ktor / Koin / Compose 均自带 consumer rules，无需额外配置。
+# 若 release 出现 Missing class 警告，再按 -dontwarn 原则逐条补充，不做全量抑制。

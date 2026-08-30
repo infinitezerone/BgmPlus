@@ -1,0 +1,126 @@
+package com.infinitezerone.bgmplus.core.network
+
+import com.infinitezerone.bgmplus.core.model.Subject
+import com.infinitezerone.bgmplus.core.network.model.CalendarDayResponse
+import com.infinitezerone.bgmplus.core.network.model.EpisodePageResponse
+import com.infinitezerone.bgmplus.core.network.model.SearchSubjectResponse
+import com.infinitezerone.bgmplus.core.network.model.UserCollectionPageResponse
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.client.request.parameter
+import io.ktor.client.request.patch
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.URLBuilder
+import io.ktor.http.appendPathSegments
+import io.ktor.http.contentType
+import kotlinx.serialization.Serializable
+
+interface BangumiApiService {
+    suspend fun getCalendar(): List<CalendarDayResponse>
+
+    suspend fun getSubject(id: Long): Subject
+
+    suspend fun getEpisodes(
+        subjectId: Long,
+        limit: Int = 100,
+        offset: Int = 0,
+    ): EpisodePageResponse
+
+    suspend fun searchSubjects(
+        keyword: String,
+        type: Int = 2,
+        limit: Int = 30,
+        offset: Int = 0,
+    ): SearchSubjectResponse
+
+    suspend fun getUserCollections(
+        username: String,
+        subjectType: Int = 2,
+        type: Int? = null,
+        limit: Int = 30,
+        offset: Int = 0,
+    ): UserCollectionPageResponse
+
+    suspend fun updateEpisodeStatus(
+        subjectId: Long,
+        episodeId: Long,
+        type: Int,
+    )
+}
+
+class BangumiApiServiceImpl(
+    private val client: HttpClient,
+    private val baseUrl: String = "https://api.bgm.tv",
+) : BangumiApiService {
+    override suspend fun getCalendar(): List<CalendarDayResponse> = client.get("$baseUrl/calendar").body()
+
+    override suspend fun getSubject(id: Long): Subject = client.get("$baseUrl/v0/subjects/$id").body()
+
+    override suspend fun getEpisodes(
+        subjectId: Long,
+        limit: Int,
+        offset: Int,
+    ): EpisodePageResponse =
+        client
+            .get("$baseUrl/v0/episodes") {
+                parameter("subject_id", subjectId)
+                parameter("limit", limit)
+                parameter("offset", offset)
+            }.body()
+
+    override suspend fun searchSubjects(
+        keyword: String,
+        type: Int,
+        limit: Int,
+        offset: Int,
+    ): SearchSubjectResponse {
+        // 关键字作为单个 path 段编码，含 ?/#// 的输入不会改变请求语义
+        val url =
+            URLBuilder(baseUrl)
+                .apply {
+                    appendPathSegments("search", "subject", keyword)
+                }.buildString()
+        return client
+            .get(url) {
+                parameter("type", type)
+                parameter("responseGroup", "medium")
+                parameter("max_results", limit)
+                parameter("start", offset)
+            }.body()
+    }
+
+    override suspend fun getUserCollections(
+        username: String,
+        subjectType: Int,
+        type: Int?,
+        limit: Int,
+        offset: Int,
+    ): UserCollectionPageResponse =
+        client
+            .get("$baseUrl/v0/users/$username/collections") {
+                parameter("subject_type", subjectType)
+                if (type != null) parameter("type", type)
+                parameter("limit", limit)
+                parameter("offset", offset)
+            }.body()
+
+    @Serializable
+    private data class EpisodeStatusUpdateBody(
+        val episode_id: Long,
+        val type: Int,
+    )
+
+    // Authorization: Bearer 由 Ktor Auth 插件统一注入，见 BgmHttpClient
+    override suspend fun updateEpisodeStatus(
+        subjectId: Long,
+        episodeId: Long,
+        type: Int,
+    ) {
+        client.patch("$baseUrl/v0/users/-/collections/$subjectId/episodes") {
+            contentType(ContentType.Application.Json)
+            setBody(EpisodeStatusUpdateBody(episode_id = episodeId, type = type))
+        }
+    }
+}

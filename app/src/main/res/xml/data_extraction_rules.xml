@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ 备份与设备迁移规则：
+  auth_tokens.pb 内是加密后的 OAuth token，Keystore 密钥不可迁移，
+  排除后即使发生备份恢复也只是回到未登录态，避免损坏密文残留。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude
+            domain="file"
+            path="datastore/auth_tokens.pb" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude
+            domain="file"
+            path="datastore/auth_tokens.pb" />
+    </device-transfer>
+</data-extraction-rules>
