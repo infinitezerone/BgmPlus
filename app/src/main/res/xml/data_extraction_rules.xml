@@ -6,11 +6,18 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
+        <!-- .json 为现行格式；.pb 为旧版本文件名，保留排除以覆盖旧版本升级场景 -->
+        <exclude
+            domain="file"
+            path="datastore/auth_tokens.json" />
         <exclude
             domain="file"
             path="datastore/auth_tokens.pb" />
     </cloud-backup>
     <device-transfer>
+        <exclude
+            domain="file"
+            path="datastore/auth_tokens.json" />
         <exclude
             domain="file"
             path="datastore/auth_tokens.pb" />

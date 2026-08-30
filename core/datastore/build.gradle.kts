@@ -24,5 +24,12 @@ kotlin {
             implementation(libs.androidx.datastore)
             implementation(libs.koin.android)
         }
+        matching { it.name == "androidHostTest" }.configureEach {
+            dependencies {
+                implementation(libs.kotlin.test)
+                implementation(libs.kotlinx.coroutines.test)
+                implementation(libs.junit)
+            }
+        }
     }
 }

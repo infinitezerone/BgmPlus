@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Android 11 及以下的自动备份规则：排除加密 token 文件 -->
 <full-backup-content>
+    <!-- .json 为现行格式；.pb 为旧版本文件名，保留排除以覆盖旧版本升级场景 -->
+    <exclude
+        domain="file"
+        path="datastore/auth_tokens.json" />
     <exclude
         domain="file"
         path="datastore/auth_tokens.pb" />

@@ -7,6 +7,7 @@ import com.infinitezerone.bgmplus.core.datastore.AuthBlobSerializer
 import com.infinitezerone.bgmplus.core.datastore.AuthTokensDataSource
 import com.infinitezerone.bgmplus.core.datastore.CryptoManager
 import com.infinitezerone.bgmplus.core.datastore.KeystoreTokenProvider
+import com.infinitezerone.bgmplus.core.datastore.UserPreferences
 import com.infinitezerone.bgmplus.core.datastore.UserPreferencesDataSource
 import com.infinitezerone.bgmplus.core.datastore.UserPreferencesSerializer
 import com.infinitezerone.bgmplus.core.network.TokenProvider
@@ -15,23 +16,28 @@ import org.koin.dsl.module
 
 val datastoreModule =
     module {
-        single {
-            DataStoreFactory.create(
-                serializer = UserPreferencesSerializer,
-                produceFile = { androidContext().dataStoreFile("user_preferences.pb") },
-            )
+        single<UserPreferencesDataSource> {
+            val userPrefsDataStore =
+                DataStoreFactory.create(
+                    serializer = UserPreferencesSerializer,
+                    produceFile = { androidContext().dataStoreFile("user_preferences.json") },
+                    corruptionHandler = ReplaceFileCorruptionHandler(produceNewData = { UserPreferences() }),
+                )
+            UserPreferencesDataSource(userPrefsDataStore)
         }
-        single { UserPreferencesDataSource(get()) }
+
+        single { CryptoManager() }
 
         // OAuth token 独立加密存储；损坏时按未登录处理（典型场景：备份恢复到新设备，Keystore 密钥不可迁移）
-        single {
-            DataStoreFactory.create(
-                serializer = AuthBlobSerializer,
-                produceFile = { androidContext().dataStoreFile("auth_tokens.pb") },
-                corruptionHandler = ReplaceFileCorruptionHandler(produceNewData = { "" }),
-            )
+        single<AuthTokensDataSource> {
+            val authTokensDataStore =
+                DataStoreFactory.create(
+                    serializer = AuthBlobSerializer,
+                    produceFile = { androidContext().dataStoreFile("auth_tokens.json") },
+                    corruptionHandler = ReplaceFileCorruptionHandler(produceNewData = { "" }),
+                )
+            AuthTokensDataSource(dataStore = authTokensDataStore, crypto = get())
         }
-        single { CryptoManager() }
-        single { AuthTokensDataSource(dataStore = get(), crypto = get()) }
+
         single<TokenProvider> { KeystoreTokenProvider(get()) }
     }
