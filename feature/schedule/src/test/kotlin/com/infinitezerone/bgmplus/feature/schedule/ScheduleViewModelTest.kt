@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -35,6 +36,8 @@ class ScheduleViewModelTest {
             assertEquals(1, repository.refreshCallCount)
             assertNull(state.error)
             assertEquals(today, state.selectedWeekday)
+            assertEquals(today, state.todayWeekday)
+            assertFalse(state.isOfflineCache)
             assertEquals(
                 "葬送的芙莉莲",
                 state.schedules.first().titleCn,
@@ -77,7 +80,25 @@ class ScheduleViewModelTest {
 
             assertTrue(state.error!!.contains("网络请求失败"))
             assertFalse(state.isLoading)
+            assertFalse(state.isOfflineCache)
             assertTrue(state.schedules.isEmpty())
+        }
+
+    @Test
+    fun refreshFailureWithExistingCachePreservesDataAndSetsOfflineState() =
+        runTest {
+            val repository = FakeScheduleRepository()
+            repository.sendSchedules(weekday = today, schedules = sampleAirScheduleList)
+            repository.refreshResult = AppResult.Error(RuntimeException("网络连接超时"))
+            val viewModel = ScheduleViewModel(repository)
+
+            val state = viewModel.uiState.first { it.error != null && it.schedules.isNotEmpty() && !it.isLoading }
+
+            assertNotNull(state.error)
+            assertTrue(state.error!!.contains("网络连接超时"))
+            assertTrue(state.isOfflineCache)
+            assertEquals(1, state.schedules.size)
+            assertEquals("葬送的芙莉莲", state.schedules.first().titleCn)
         }
 
     @Test
@@ -95,5 +116,6 @@ class ScheduleViewModelTest {
             assertEquals(2, repository.refreshCallCount)
             assertFalse(state.isLoading)
             assertNull(state.error)
+            assertFalse(state.isOfflineCache)
         }
 }

@@ -21,15 +21,22 @@ import java.time.LocalDate
 @Immutable
 data class ScheduleUiState(
     val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
     val error: String? = null,
     val selectedWeekday: Int,
+    val todayWeekday: Int = LocalDate.now().dayOfWeek.value,
     val schedules: List<AirSchedule> = emptyList(),
-)
+) {
+    /** 是否处于离线缓存展示状态：有网络错误发生但本地有缓存数据 */
+    val isOfflineCache: Boolean
+        get() = error != null && schedules.isNotEmpty()
+}
 
 /**
  * 每周放送时间表：
  * - [selectedWeekday] 变更经 flatMapLatest 切换 Room 流，离线优先展示；
- * - 进入 Tab 时触发一次 [refresh]，失败转成 [ScheduleUiState.error] 文案。
+ * - 进入 Tab 时触发一次 [refresh]，失败转成 [ScheduleUiState.error] 文案；
+ * - 支持下拉刷新与手动刷新。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScheduleViewModel(
@@ -51,14 +58,21 @@ class ScheduleViewModel(
         ) { schedules, refreshing, error, weekday ->
             ScheduleUiState(
                 isLoading = refreshing,
+                isRefreshing = refreshing,
                 error = error,
                 selectedWeekday = weekday,
+                todayWeekday = LocalDate.now().dayOfWeek.value,
                 schedules = schedules,
             )
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = ScheduleUiState(selectedWeekday = initialWeekday),
+            initialValue =
+                ScheduleUiState(
+                    isLoading = true,
+                    isRefreshing = false,
+                    selectedWeekday = initialWeekday,
+                ),
         )
 
     init {
