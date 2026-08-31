@@ -17,6 +17,8 @@ data class UserPreferences(
     val pendingOAuthVerifier: String = "",
     val isDarkMode: Boolean = false,
     val notifyBeforeAirMinutes: Int = 15,
+    /** bangumi-data CDN 静态数据的 HTTP ETag 指纹（用于 304 条件请求，避免全量重复拉取） */
+    val bangumiDataEtag: String = "",
     // 兼容旧字段
     val userId: Long = 0L,
     val username: String = "",

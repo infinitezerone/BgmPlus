@@ -4,12 +4,15 @@ import com.infinitezerone.bgmplus.core.common.AppResult
 import com.infinitezerone.bgmplus.core.common.TimeUtils
 import com.infinitezerone.bgmplus.core.database.dao.AirScheduleDao
 import com.infinitezerone.bgmplus.core.database.entity.AirScheduleEntity
+import com.infinitezerone.bgmplus.core.datastore.UserPreferencesDataSource
 import com.infinitezerone.bgmplus.core.model.AirSchedule
 import com.infinitezerone.bgmplus.core.model.BangumiDataSite
 import com.infinitezerone.bgmplus.core.model.SiteLink
 import com.infinitezerone.bgmplus.core.network.BangumiApiService
+import com.infinitezerone.bgmplus.core.network.BangumiDataResult
 import com.infinitezerone.bgmplus.core.network.BangumiDataService
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -24,6 +27,7 @@ class ScheduleRepositoryImpl(
     private val apiService: BangumiApiService,
     private val dataService: BangumiDataService,
     private val scheduleDao: AirScheduleDao,
+    private val userPreferences: UserPreferencesDataSource,
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) : ScheduleRepository {
     override fun getSchedulesByWeekday(weekday: Int): Flow<List<AirSchedule>> =
@@ -37,59 +41,107 @@ class ScheduleRepositoryImpl(
             val calendarDays =
                 runCatching { apiService.getCalendar() }.getOrNull() ?: emptyList()
 
-            // 2. 获取 bangumi-data 聚合元数据（包含放送站点播放链接与精准 CST 放送时刻）
-            val bangumiItems =
-                runCatching { dataService.getBangumiData() }.getOrNull() ?: emptyList()
+            if (calendarDays.isEmpty()) {
+                return AppResult.Error(IllegalStateException("Failed to load official schedule calendar"))
+            }
 
-            val bgmMap = bangumiItems.filter { it.bgmSubjectId != null }.associateBy { it.bgmSubjectId!! }
+            // 2. 获取本地存储的 ETag 指纹，向 CDN 发起 304 条件请求（无更新时 0 字节传输）
+            val currentEtag =
+                userPreferences.userPreferences
+                    .firstOrNull()
+                    ?.bangumiDataEtag
+                    .orEmpty()
+            val bangumiDataResult =
+                runCatching { dataService.getBangumiData(currentEtag) }.getOrNull()
+
+            // 3. 读取本地已有的缓存实体，用于在 304 Not Modified 时复用已有播放源和时刻
+            val existingEntities = scheduleDao.getAllSchedulesList().associateBy { it.bgmId }
             val entities = mutableListOf<AirScheduleEntity>()
 
-            // 仅基于官方每日放送日历构建当季连载中动画
-            for (day in calendarDays) {
-                val officialWeekday = day.weekday.id
-                for (subject in day.items) {
-                    val bgmId = subject.id
-                    val dataItem = bgmMap[bgmId]
+            when (bangumiDataResult) {
+                is BangumiDataResult.Success -> {
+                    // CDN 有新版本发布 (200 OK)：全量融合新数据，并持久化新的 ETag 指纹
+                    val bgmMap =
+                        bangumiDataResult.items
+                            .filter { it.bgmSubjectId != null }
+                            .associateBy { it.bgmSubjectId!! }
 
-                    // 以官方每日放送日历分类的 weekday 为准，确保周一至周日与官网完全一致
-                    val weekday = officialWeekday
-                    val timeCst = dataItem?.let { TimeUtils.formatToCstTime(it.begin) } ?: ""
-                    val timeJst = dataItem?.let { TimeUtils.formatToJstTime(it.begin) } ?: ""
-                    val beginUtc = dataItem?.begin ?: ""
+                    val newEtag = bangumiDataResult.etag
+                    if (!newEtag.isNullOrBlank()) {
+                        userPreferences.setBangumiDataEtag(newEtag)
+                    }
 
-                    val siteLinks =
-                        dataItem?.sites?.mapNotNull { s -> resolveSiteLink(s) } ?: emptyList()
+                    for (day in calendarDays) {
+                        val officialWeekday = day.weekday.id
+                        for (subject in day.items) {
+                            val bgmId = subject.id
+                            val dataItem = bgmMap[bgmId]
 
-                    val coverUrl =
-                        (subject.images?.bestImage ?: "").replace("http://", "https://")
-                    val titleCn = subject.nameCn.ifBlank { dataItem?.chineseTitle ?: "" }
+                            val weekday = officialWeekday
+                            val timeCst = dataItem?.let { TimeUtils.formatToCstTime(it.begin) } ?: ""
+                            val timeJst = dataItem?.let { TimeUtils.formatToJstTime(it.begin) } ?: ""
+                            val beginUtc = dataItem?.begin ?: ""
+                            val siteLinks =
+                                dataItem?.sites?.mapNotNull { s -> resolveSiteLink(s) } ?: emptyList()
 
-                    entities.add(
-                        AirScheduleEntity(
-                            bgmId = bgmId,
-                            title = subject.name,
-                            titleCn = titleCn,
-                            coverUrl = coverUrl,
-                            ratingScore = subject.rating?.score ?: 0.0,
-                            beginUtc = beginUtc,
-                            weekday = weekday,
-                            timeCst = timeCst,
-                            timeJst = timeJst,
-                            sitesJson = json.encodeToString(siteLinks),
-                        ),
-                    )
+                            val coverUrl =
+                                (subject.images?.bestImage ?: "").replace("http://", "https://")
+                            val titleCn = subject.nameCn.ifBlank { dataItem?.chineseTitle ?: "" }
+
+                            entities.add(
+                                AirScheduleEntity(
+                                    bgmId = bgmId,
+                                    title = subject.name,
+                                    titleCn = titleCn,
+                                    coverUrl = coverUrl,
+                                    ratingScore = subject.rating?.score ?: 0.0,
+                                    beginUtc = beginUtc,
+                                    weekday = weekday,
+                                    timeCst = timeCst,
+                                    timeJst = timeJst,
+                                    sitesJson = json.encodeToString(siteLinks),
+                                ),
+                            )
+                        }
+                    }
+                }
+
+                BangumiDataResult.NotModified, null -> {
+                    // CDN 无更新 (304 Not Modified) 或网络异常：0 字节传输，复用本地已有的播放源与时间，仅更新官方海报/评分/标题
+                    for (day in calendarDays) {
+                        val officialWeekday = day.weekday.id
+                        for (subject in day.items) {
+                            val bgmId = subject.id
+                            val existing = existingEntities[bgmId]
+
+                            val coverUrl =
+                                (subject.images?.bestImage ?: "").replace("http://", "https://")
+                            val titleCn = subject.nameCn.ifBlank { existing?.titleCn ?: "" }
+
+                            entities.add(
+                                AirScheduleEntity(
+                                    bgmId = bgmId,
+                                    title = subject.name,
+                                    titleCn = titleCn,
+                                    coverUrl = coverUrl,
+                                    ratingScore = subject.rating?.score ?: 0.0,
+                                    beginUtc = existing?.beginUtc ?: "",
+                                    weekday = officialWeekday,
+                                    timeCst = existing?.timeCst ?: "",
+                                    timeJst = existing?.timeJst ?: "",
+                                    sitesJson = existing?.sitesJson ?: "[]",
+                                ),
+                            )
+                        }
+                    }
                 }
             }
 
             if (entities.isNotEmpty()) {
                 scheduleDao.clearSchedules()
                 scheduleDao.insertSchedules(entities)
-                AppResult.Success(Unit)
-            } else if (calendarDays.isEmpty()) {
-                AppResult.Error(IllegalStateException("Failed to load official schedule calendar"))
-            } else {
-                AppResult.Success(Unit)
             }
+            AppResult.Success(Unit)
         } catch (e: Throwable) {
             AppResult.Error(e)
         }

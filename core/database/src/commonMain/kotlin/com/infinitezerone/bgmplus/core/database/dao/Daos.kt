@@ -30,6 +30,9 @@ interface AirScheduleDao {
     @Query("SELECT * FROM air_schedules")
     fun getAllSchedules(): Flow<List<AirScheduleEntity>>
 
+    @Query("SELECT * FROM air_schedules")
+    suspend fun getAllSchedulesList(): List<AirScheduleEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSchedules(schedules: List<AirScheduleEntity>)
 
