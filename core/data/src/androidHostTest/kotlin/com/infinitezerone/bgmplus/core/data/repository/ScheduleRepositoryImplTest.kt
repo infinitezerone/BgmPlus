@@ -5,6 +5,7 @@ import com.infinitezerone.bgmplus.core.database.dao.AirScheduleDao
 import com.infinitezerone.bgmplus.core.database.entity.AirScheduleEntity
 import com.infinitezerone.bgmplus.core.model.BangumiDataItem
 import com.infinitezerone.bgmplus.core.model.BangumiDataSite
+import com.infinitezerone.bgmplus.core.model.SearchSubjectsRequest
 import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.core.network.BangumiApiService
 import com.infinitezerone.bgmplus.core.network.BangumiDataResult
@@ -12,6 +13,7 @@ import com.infinitezerone.bgmplus.core.network.BangumiDataService
 import com.infinitezerone.bgmplus.core.network.model.CalendarDayResponse
 import com.infinitezerone.bgmplus.core.network.model.CalendarWeekday
 import com.infinitezerone.bgmplus.core.network.model.EpisodePageResponse
+import com.infinitezerone.bgmplus.core.network.model.PageResponse
 import com.infinitezerone.bgmplus.core.network.model.SearchSubjectResponse
 import com.infinitezerone.bgmplus.core.network.model.UserCollectionPageResponse
 import com.infinitezerone.bgmplus.core.testing.datastore.createTestUserPreferencesDataSource
@@ -66,6 +68,12 @@ class ScheduleRepositoryImplTest {
             limit: Int,
             offset: Int,
         ): SearchSubjectResponse = error("Not implemented")
+
+        override suspend fun searchSubjectsAdvanced(
+            request: SearchSubjectsRequest,
+            limit: Int,
+            offset: Int,
+        ): PageResponse<Subject> = error("Not implemented")
 
         override suspend fun getUserCollections(
             username: String,
