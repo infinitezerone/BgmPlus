@@ -14,6 +14,8 @@ kotlin {
             api(project(":core:model"))
             api(project(":core:common"))
             api(project(":core:data"))
+            api(project(":core:datastore"))
+            api(libs.androidx.datastore.core)
             api(libs.kotlinx.coroutines.test)
             api(libs.kotlin.test)
             api(libs.junit)

@@ -87,6 +87,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.infinitezerone.bgmplus.core.designsystem.theme.BgmPlusTheme
 import com.infinitezerone.bgmplus.core.designsystem.theme.ThemePreviews
+import com.infinitezerone.bgmplus.core.model.SyncInterval
 import com.infinitezerone.bgmplus.core.model.UserAvatar
 import com.infinitezerone.bgmplus.core.model.UserProfile
 import kotlinx.coroutines.launch
@@ -124,6 +125,18 @@ fun UserScreen(
                 snackbarHostState.showSnackbar("「$label」分类筛选将在后续版本上线")
             }
         },
+        onSelectSyncInterval = viewModel::setSyncInterval,
+        onSyncNow = {
+            viewModel.syncBangumiDataNow { success ->
+                coroutineScope.launch {
+                    if (success) {
+                        snackbarHostState.showSnackbar("播放源已是最新状态 ✨")
+                    } else {
+                        snackbarHostState.showSnackbar("播放源同步失败，请检查网络")
+                    }
+                }
+            }
+        },
         snackbarHostState = snackbarHostState,
         modifier = modifier,
     )
@@ -141,6 +154,8 @@ fun UserScreenContent(
     onOpenBgmWeb: () -> Unit,
     onClearCache: () -> Unit,
     onCollectionClick: (String) -> Unit,
+    onSelectSyncInterval: (SyncInterval) -> Unit,
+    onSyncNow: () -> Unit,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
 ) {
@@ -148,6 +163,7 @@ fun UserScreenContent(
     var accountToLogout by remember { mutableStateOf<UserProfile?>(null) }
     var showLogoutAllDialog by remember { mutableStateOf(false) }
     var showLogoutCurrentDialog by remember { mutableStateOf(false) }
+    var showSyncIntervalDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -245,11 +261,24 @@ fun UserScreenContent(
 
             item(key = "settings_and_about") {
                 SettingsAndAboutCard(
+                    syncInterval = uiState.syncInterval,
+                    lastSyncTimestamp = uiState.lastSyncTimestamp,
+                    isSyncing = uiState.isSyncing,
+                    onOpenSyncDialog = { showSyncIntervalDialog = true },
+                    onSyncNow = onSyncNow,
                     onOpenBgmWeb = onOpenBgmWeb,
                     onClearCache = onClearCache,
                 )
             }
         }
+    }
+
+    if (showSyncIntervalDialog) {
+        SyncIntervalDialog(
+            currentInterval = uiState.syncInterval,
+            onSelectInterval = onSelectSyncInterval,
+            onDismiss = { showSyncIntervalDialog = false },
+        )
     }
 
     if (showAccountSheet) {
@@ -978,10 +1007,22 @@ private fun CollectionStatusItem(
 
 @Composable
 private fun SettingsAndAboutCard(
+    syncInterval: SyncInterval,
+    lastSyncTimestamp: Long,
+    isSyncing: Boolean,
+    onOpenSyncDialog: () -> Unit,
+    onSyncNow: () -> Unit,
     onOpenBgmWeb: () -> Unit,
     onClearCache: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val lastSyncText =
+        if (lastSyncTimestamp == 0L) {
+            "未检测"
+        } else {
+            "已同步"
+        }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -996,6 +1037,35 @@ private fun SettingsAndAboutCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+            )
+
+            SettingsItemRow(
+                icon = Icons.Filled.Sync,
+                iconTint = MaterialTheme.colorScheme.primary,
+                title = "播放源后台同步",
+                subtitle = "频率: ${syncInterval.displayName} · 状态: $lastSyncText",
+                trailing = {
+                    if (isSyncing) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        OutlinedButton(
+                            onClick = onSyncNow,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Text("立即检查", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                },
+                onClick = onOpenSyncDialog,
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 18.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
             )
 
             SettingsItemRow(
@@ -1052,6 +1122,52 @@ private fun SettingsAndAboutCard(
             )
         }
     }
+}
+
+@Composable
+private fun SyncIntervalDialog(
+    currentInterval: SyncInterval,
+    onSelectInterval: (SyncInterval) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("播放源自动同步频率") },
+        text = {
+            Column(modifier = Modifier.padding(top = 8.dp)) {
+                SyncInterval.entries.forEach { interval ->
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onSelectInterval(interval)
+                                    onDismiss()
+                                }.padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = (interval == currentInterval),
+                            onClick = {
+                                onSelectInterval(interval)
+                                onDismiss()
+                            },
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = interval.displayName,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        },
+    )
 }
 
 @Composable
@@ -1356,6 +1472,8 @@ private fun UserScreenUnauthenticatedPreview() {
             onOpenBgmWeb = {},
             onClearCache = {},
             onCollectionClick = {},
+            onSelectSyncInterval = {},
+            onSyncNow = {},
             snackbarHostState = remember { SnackbarHostState() },
         )
     }
@@ -1380,6 +1498,8 @@ private fun UserScreenSingleAccountPreview() {
             onOpenBgmWeb = {},
             onClearCache = {},
             onCollectionClick = {},
+            onSelectSyncInterval = {},
+            onSyncNow = {},
             snackbarHostState = remember { SnackbarHostState() },
         )
     }
@@ -1404,6 +1524,8 @@ private fun UserScreenMultiAccountPreview() {
             onOpenBgmWeb = {},
             onClearCache = {},
             onCollectionClick = {},
+            onSelectSyncInterval = {},
+            onSyncNow = {},
             snackbarHostState = remember { SnackbarHostState() },
         )
     }

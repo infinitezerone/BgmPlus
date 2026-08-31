@@ -26,8 +26,17 @@ class FakeScheduleRepository : ScheduleRepository {
 
     override fun getSchedulesByWeekday(weekday: Int): Flow<List<AirSchedule>> = schedulesState.map { it[weekday].orEmpty() }
 
+    var syncBangumiDataCallCount: Int = 0
+        private set
+    var syncBangumiDataResult: AppResult<Unit> = AppResult.Success(Unit)
+
     override suspend fun refreshSchedules(): AppResult<Unit> {
         refreshCallCount++
         return refreshResult
+    }
+
+    override suspend fun syncBangumiData(force: Boolean): AppResult<Unit> {
+        syncBangumiDataCallCount++
+        return syncBangumiDataResult
     }
 }

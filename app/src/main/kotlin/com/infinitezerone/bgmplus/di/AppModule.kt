@@ -10,6 +10,7 @@ import com.infinitezerone.bgmplus.feature.schedule.di.scheduleModule
 import com.infinitezerone.bgmplus.feature.search.di.searchModule
 import com.infinitezerone.bgmplus.feature.subject.di.subjectModule
 import com.infinitezerone.bgmplus.feature.user.di.userModule
+import com.infinitezerone.bgmplus.sync.work.di.syncWorkModule
 import org.koin.dsl.module
 
 fun appModule(enableNetworkLogging: Boolean = BuildConfig.DEBUG) =
@@ -23,6 +24,7 @@ fun appModule(enableNetworkLogging: Boolean = BuildConfig.DEBUG) =
             userModule,
             subjectModule,
             searchModule,
+            syncWorkModule,
         )
         single { BgmDispatchers() }
     }

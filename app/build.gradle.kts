@@ -41,7 +41,9 @@ dependencies {
     implementation(project(":feature:schedule"))
     implementation(project(":feature:subject"))
     implementation(project(":feature:search"))
+    implementation(project(":sync:work"))
 
+    implementation(libs.koin.androidx.workmanager)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
