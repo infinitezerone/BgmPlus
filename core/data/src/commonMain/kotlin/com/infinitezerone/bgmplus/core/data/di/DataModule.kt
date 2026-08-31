@@ -30,6 +30,7 @@ val dataModule =
                 apiService = get<BangumiApiService>(),
                 dataService = get<BangumiDataService>(),
                 scheduleDao = get<AirScheduleDao>(),
+                userPreferences = get<UserPreferencesDataSource>(),
             )
         }
         single<SubjectRepository> {

@@ -112,4 +112,10 @@ class UserPreferencesDataSource(
             current.copy(notifyBeforeAirMinutes = minutes)
         }
     }
+
+    suspend fun setBangumiDataEtag(etag: String) {
+        dataStore.updateData { current ->
+            current.copy(bangumiDataEtag = etag)
+        }
+    }
 }
