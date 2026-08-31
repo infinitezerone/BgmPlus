@@ -37,11 +37,21 @@ class AppModuleTest : KoinTest {
     fun verifyUserViewModelWithAuthRepository() =
         runTest {
             val fakeAuth = FakeAuthRepository(initialLoggedIn = false)
+            val fakeSchedule = FakeScheduleRepository()
+            val fakeUserPrefs =
+                com.infinitezerone.bgmplus.core.testing.datastore
+                    .createTestUserPreferencesDataSource()
+            val fakeSync =
+                com.infinitezerone.bgmplus.core.testing.repository
+                    .FakeSyncManager()
             startKoin {
                 modules(
                     module {
                         single<AuthRepository> { fakeAuth }
-                        single { UserViewModel(get()) }
+                        single<ScheduleRepository> { fakeSchedule }
+                        single { fakeUserPrefs }
+                        single<com.infinitezerone.bgmplus.core.data.util.SyncManager> { fakeSync }
+                        single { UserViewModel(get(), get(), get(), get()) }
                     },
                 )
             }
@@ -92,5 +102,24 @@ class AppModuleTest : KoinTest {
             val viewModel: SearchViewModel = get()
             assertNotNull(viewModel)
             assertEquals("", viewModel.uiState.value.query)
+        }
+
+    @Test
+    fun verifySyncManagerResolution() =
+        runTest {
+            val fakeSync =
+                com.infinitezerone.bgmplus.core.testing.repository
+                    .FakeSyncManager()
+            startKoin {
+                modules(
+                    module {
+                        single<com.infinitezerone.bgmplus.core.data.util.SyncManager> { fakeSync }
+                    },
+                )
+            }
+
+            val syncManager: com.infinitezerone.bgmplus.core.data.util.SyncManager = get()
+            assertNotNull(syncManager)
+            assertEquals(false, syncManager.isSyncing.first())
         }
 }

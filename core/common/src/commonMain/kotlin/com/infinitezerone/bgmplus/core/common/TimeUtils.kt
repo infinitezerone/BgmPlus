@@ -38,4 +38,9 @@ object TimeUtils {
         } catch (_: Exception) {
             1
         }
+
+    fun nowEpochMillis(): Long =
+        kotlin.time.Clock.System
+            .now()
+            .toEpochMilliseconds()
 }

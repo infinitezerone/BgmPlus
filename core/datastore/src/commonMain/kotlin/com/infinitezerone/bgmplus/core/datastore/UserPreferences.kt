@@ -19,6 +19,10 @@ data class UserPreferences(
     val notifyBeforeAirMinutes: Int = 15,
     /** bangumi-data CDN 静态数据的 HTTP ETag 指纹（用于 304 条件请求，避免全量重复拉取） */
     val bangumiDataEtag: String = "",
+    /** 播放源后台自动同步频率 */
+    val syncInterval: com.infinitezerone.bgmplus.core.model.SyncInterval = com.infinitezerone.bgmplus.core.model.SyncInterval.WEEKLY,
+    /** 上次成功同步 bangumi-data 播放源的时间戳 (毫秒) */
+    val bangumiDataLastSyncTimestamp: Long = 0L,
     // 兼容旧字段
     val userId: Long = 0L,
     val username: String = "",

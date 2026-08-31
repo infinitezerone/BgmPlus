@@ -118,4 +118,16 @@ class UserPreferencesDataSource(
             current.copy(bangumiDataEtag = etag)
         }
     }
+
+    suspend fun setSyncInterval(interval: com.infinitezerone.bgmplus.core.model.SyncInterval) {
+        dataStore.updateData { current ->
+            current.copy(syncInterval = interval)
+        }
+    }
+
+    suspend fun setBangumiDataLastSyncTimestamp(timestamp: Long) {
+        dataStore.updateData { current ->
+            current.copy(bangumiDataLastSyncTimestamp = timestamp)
+        }
+    }
 }
