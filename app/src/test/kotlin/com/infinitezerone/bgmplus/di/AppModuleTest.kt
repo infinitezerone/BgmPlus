@@ -2,10 +2,13 @@ package com.infinitezerone.bgmplus.di
 
 import com.infinitezerone.bgmplus.core.data.repository.AuthRepository
 import com.infinitezerone.bgmplus.core.data.repository.ScheduleRepository
+import com.infinitezerone.bgmplus.core.data.repository.SearchRepository
 import com.infinitezerone.bgmplus.core.data.repository.SubjectRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeAuthRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeScheduleRepository
+import com.infinitezerone.bgmplus.core.testing.repository.FakeSearchRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeSubjectRepository
+import com.infinitezerone.bgmplus.feature.search.SearchViewModel
 import com.infinitezerone.bgmplus.feature.user.UserViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -57,6 +60,7 @@ class AppModuleTest : KoinTest {
                         single<AuthRepository> { FakeAuthRepository() }
                         single<ScheduleRepository> { FakeScheduleRepository() }
                         single<SubjectRepository> { FakeSubjectRepository() }
+                        single<SearchRepository> { FakeSearchRepository() }
                     },
                 )
             }
@@ -64,9 +68,29 @@ class AppModuleTest : KoinTest {
             val authRepo: AuthRepository = get()
             val scheduleRepo: ScheduleRepository = get()
             val subjectRepo: SubjectRepository = get()
+            val searchRepo: SearchRepository = get()
 
             assertNotNull(authRepo)
             assertNotNull(scheduleRepo)
             assertNotNull(subjectRepo)
+            assertNotNull(searchRepo)
+        }
+
+    @Test
+    fun verifySearchViewModelWithSearchRepository() =
+        runTest {
+            val fakeSearch = FakeSearchRepository()
+            startKoin {
+                modules(
+                    module {
+                        single<SearchRepository> { fakeSearch }
+                        single { SearchViewModel(get()) }
+                    },
+                )
+            }
+
+            val viewModel: SearchViewModel = get()
+            assertNotNull(viewModel)
+            assertEquals("", viewModel.uiState.value.query)
         }
 }

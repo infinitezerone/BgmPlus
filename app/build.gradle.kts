@@ -39,6 +39,7 @@ dependencies {
     implementation(project(":feature:user"))
     implementation(project(":feature:schedule"))
     implementation(project(":feature:subject"))
+    implementation(project(":feature:search"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

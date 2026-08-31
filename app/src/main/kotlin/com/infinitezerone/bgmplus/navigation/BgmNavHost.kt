@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.infinitezerone.bgmplus.feature.schedule.navigation.scheduleEntry
+import com.infinitezerone.bgmplus.feature.search.navigation.searchEntry
 import com.infinitezerone.bgmplus.feature.subject.navigation.SubjectDetailRoute
 import com.infinitezerone.bgmplus.feature.subject.navigation.subjectEntry
 import com.infinitezerone.bgmplus.feature.user.navigation.userEntry
@@ -29,6 +30,13 @@ fun BgmNavHost(
                     userEntry()
 
                     subjectEntry(onBackClick = { navState.goBack() })
+
+                    searchEntry(
+                        onSubjectClick = {
+                            navState.navigateTo(SubjectDetailRoute(it))
+                        },
+                        onBackClick = { navState.goBack() },
+                    )
 
                     entry<ExploreRoute> {
                         ExploreScreen(
