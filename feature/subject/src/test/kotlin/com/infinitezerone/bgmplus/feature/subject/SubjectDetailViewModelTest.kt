@@ -1,8 +1,11 @@
 package com.infinitezerone.bgmplus.feature.subject
 
 import com.infinitezerone.bgmplus.core.common.AppResult
+import com.infinitezerone.bgmplus.core.model.CollectionType
 import com.infinitezerone.bgmplus.core.testing.data.sampleEpisodeList
 import com.infinitezerone.bgmplus.core.testing.data.sampleSubject
+import com.infinitezerone.bgmplus.core.testing.data.sampleUserCollection
+import com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeSubjectRepository
 import com.infinitezerone.bgmplus.core.testing.util.MainDispatcherRule
 import kotlinx.coroutines.test.runTest
@@ -105,8 +108,8 @@ class SubjectDetailViewModelTest {
                     sendEpisodes(sampleSubject.id, sampleEpisodeList)
                 }
             val collectionRepo =
-                com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionRepository().apply {
-                    sendCollection(com.infinitezerone.bgmplus.core.testing.data.sampleUserCollection)
+                FakeCollectionRepository().apply {
+                    sendCollection(sampleUserCollection)
                 }
 
             val viewModel =
@@ -117,7 +120,7 @@ class SubjectDetailViewModelTest {
                 )
 
             val state = viewModel.uiState.value
-            assertEquals(com.infinitezerone.bgmplus.core.testing.data.sampleUserCollection, state.collection)
+            assertEquals(sampleUserCollection, state.collection)
             assertEquals(3, state.collection?.type)
         }
 
@@ -125,9 +128,7 @@ class SubjectDetailViewModelTest {
     fun updateCollectionStatus_callsRepository() =
         runTest {
             val subjectRepo = FakeSubjectRepository()
-            val collectionRepo =
-                com.infinitezerone.bgmplus.core.testing.repository
-                    .FakeCollectionRepository()
+            val collectionRepo = FakeCollectionRepository()
 
             val viewModel =
                 SubjectDetailViewModel(
@@ -137,9 +138,10 @@ class SubjectDetailViewModelTest {
                 )
 
             viewModel.updateCollectionStatus(
-                type = com.infinitezerone.bgmplus.core.model.CollectionType.COLLECT,
+                type = CollectionType.COLLECT,
                 rate = 9,
                 comment = "好看！",
+                private = true,
             )
 
             assertEquals(1, collectionRepo.updateCollectionCallCount)
@@ -149,9 +151,7 @@ class SubjectDetailViewModelTest {
     fun toggleEpisodeWatched_callsRepository() =
         runTest {
             val subjectRepo = FakeSubjectRepository()
-            val collectionRepo =
-                com.infinitezerone.bgmplus.core.testing.repository
-                    .FakeCollectionRepository()
+            val collectionRepo = FakeCollectionRepository()
 
             val viewModel =
                 SubjectDetailViewModel(
@@ -161,7 +161,30 @@ class SubjectDetailViewModelTest {
                 )
 
             viewModel.toggleEpisodeWatched(2001L, isWatched = true)
-
             assertEquals(1, collectionRepo.updateEpisodeCallCount)
+
+            viewModel.toggleEpisodeWatched(2001L, isWatched = false)
+            assertEquals(2, collectionRepo.updateEpisodeCallCount)
+        }
+
+    @Test
+    fun refresh_refetchesSubjectDetailAndEpisodes() =
+        runTest {
+            var fetchCount = 0
+            val repository =
+                FakeSubjectRepository().apply {
+                    fetchSubjectDetailResult = {
+                        fetchCount++
+                        AppResult.Success(sampleSubject)
+                    }
+                    sendSubject(sampleSubject)
+                }
+
+            val viewModel = SubjectDetailViewModel(repository, sampleSubject.id)
+            val initialCount = fetchCount
+
+            viewModel.refresh()
+            assertEquals(initialCount + 1, fetchCount)
+            assertFalse(viewModel.uiState.value.isLoading)
         }
 }

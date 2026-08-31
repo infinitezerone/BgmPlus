@@ -34,18 +34,7 @@ class SubjectDetailViewModel(
 
     init {
         // 先拉取条目详情与章节（写入本地库）；错误仅转为文案，不中断流程
-        viewModelScope.launch {
-            subjectRepository
-                .fetchSubjectDetail(subjectId)
-                .onError { _, message -> _uiState.update { it.copy(error = message) } }
-            subjectRepository
-                .fetchEpisodes(subjectId)
-                .onError { _, message -> _uiState.update { it.copy(error = message) } }
-            collectionRepository
-                ?.fetchCollection(subjectId)
-                ?.onError { _, message -> _uiState.update { it.copy(error = message) } }
-            _uiState.update { it.copy(isLoading = false) }
-        }
+        refresh()
         // 订阅本地库流：fetch 写库后由 Flow 合并进 UiState（数据库为单一数据源）
         viewModelScope.launch {
             subjectRepository.getSubjectStream(subjectId).collect { subject ->
@@ -63,6 +52,23 @@ class SubjectDetailViewModel(
                     _uiState.update { it.copy(collection = collection) }
                 }
             }
+        }
+    }
+
+    /** 刷新/重新拉取条目、分集与收藏数据 */
+    fun refresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            subjectRepository
+                .fetchSubjectDetail(subjectId)
+                .onError { _, message -> _uiState.update { it.copy(error = message) } }
+            subjectRepository
+                .fetchEpisodes(subjectId)
+                .onError { _, message -> _uiState.update { it.copy(error = message) } }
+            collectionRepository
+                ?.fetchCollection(subjectId)
+                ?.onError { _, message -> _uiState.update { it.copy(error = message) } }
+            _uiState.update { it.copy(isLoading = false) }
         }
     }
 
