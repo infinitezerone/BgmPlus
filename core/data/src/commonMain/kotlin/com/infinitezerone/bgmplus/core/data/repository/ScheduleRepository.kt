@@ -41,18 +41,16 @@ class ScheduleRepositoryImpl(
                 runCatching { dataService.getBangumiData() }.getOrNull() ?: emptyList()
 
             val bgmMap = bangumiItems.filter { it.bgmSubjectId != null }.associateBy { it.bgmSubjectId!! }
-
             val entities = mutableListOf<AirScheduleEntity>()
-            val processedIds = mutableSetOf<Long>()
 
-            // 优先基于官方日历构建带封面的条目
+            // 仅基于官方每日放送日历构建当季连载中动画
             for (day in calendarDays) {
                 val officialWeekday = day.weekday.id
                 for (subject in day.items) {
                     val bgmId = subject.id
-                    processedIds.add(bgmId)
                     val dataItem = bgmMap[bgmId]
 
+                    // 若 bangumi-data 有精准国内首播换算则以 CST weekday 为主，否则以官方日历 weekday 为准
                     val weekday = dataItem?.let { TimeUtils.getCstWeekday(it.begin) } ?: officialWeekday
                     val timeCst = dataItem?.let { TimeUtils.formatToCstTime(it.begin) } ?: ""
                     val timeJst = dataItem?.let { TimeUtils.formatToJstTime(it.begin) } ?: ""
@@ -88,45 +86,12 @@ class ScheduleRepositoryImpl(
                 }
             }
 
-            // 补充 bangumi-data 中存在但不在官方当前日历里的其余放送条目
-            for (item in bangumiItems) {
-                val bgmId = item.bgmSubjectId ?: continue
-                if (bgmId in processedIds) continue
-
-                val weekday = TimeUtils.getCstWeekday(item.begin)
-                val timeCst = TimeUtils.formatToCstTime(item.begin)
-                val timeJst = TimeUtils.formatToJstTime(item.begin)
-
-                val siteLinks =
-                    item.sites.map { s ->
-                        SiteLink(
-                            siteName = s.site,
-                            displayName = formatSiteName(s.site),
-                            playUrl = s.url.ifBlank { "https://${s.site}.com" },
-                        )
-                    }
-
-                entities.add(
-                    AirScheduleEntity(
-                        bgmId = bgmId,
-                        title = item.title,
-                        titleCn = item.chineseTitle,
-                        coverUrl = "",
-                        ratingScore = 0.0,
-                        beginUtc = item.begin,
-                        weekday = weekday,
-                        timeCst = timeCst,
-                        timeJst = timeJst,
-                        sitesJson = json.encodeToString(siteLinks),
-                    ),
-                )
-            }
-
             if (entities.isNotEmpty()) {
+                scheduleDao.clearSchedules()
                 scheduleDao.insertSchedules(entities)
                 AppResult.Success(Unit)
-            } else if (calendarDays.isEmpty() && bangumiItems.isEmpty()) {
-                AppResult.Error(IllegalStateException("Failed to load schedule data from all sources"))
+            } else if (calendarDays.isEmpty()) {
+                AppResult.Error(IllegalStateException("Failed to load official schedule calendar"))
             } else {
                 AppResult.Success(Unit)
             }
