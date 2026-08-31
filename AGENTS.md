@@ -19,21 +19,23 @@ BgmPlus/
 ├── app/                        # Entry point, MainActivity, Koin init, OAuth deep-link handling
 ├── build-logic/                # Convention plugins (bgmplus.* ids) — all shared module config lives here
 ├── core/
-│   ├── model/                  # Pure Kotlin data classes (Subject, Episode, AirSchedule, ...)
-│   ├── common/                 # AppResult, BgmDispatchers, TimeUtils
-│   ├── network/                # Ktor dual-client setup, Bangumi REST v0 API, OAuth token refresh loop
+│   ├── model/                  # Pure Kotlin data classes (Subject, Episode, AirSchedule, SearchFilter, ...)
+│   ├── common/                 # AppResult, BgmDispatchers, TimeUtils, UserDataClearable
+│   ├── network/                # Ktor dual-client setup, Bangumi REST v0 API, OAuth token refresh loop, ETag cache
 │   ├── database/               # Room 3 entities, DAOs, BgmDatabase
 │   ├── datastore/              # UserPreferences (commonMain); Keystore-encrypted AuthTokensDataSource (androidMain)
-│   ├── data/                   # Repositories: AuthRepository, ScheduleRepository, SubjectRepository
+│   ├── data/                   # Repositories: AuthRepository, ScheduleRepository, SubjectRepository, CollectionRepository, SearchRepository, SyncManager
 │   ├── designsystem/           # BgmPlusTheme, M3 tokens, CoverImage
-│   ├── navigation/             # Navigation 3 NavKey contracts, BgmNavState, TopLevelDestination
+│   ├── navigation/             # Navigation 3 NavKey contracts, BgmNavState, TopLevelDestination, BgmRoutes
 │   └── testing/                # Test doubles (Fake repositories), MainDispatcherRule, TestData
+├── sync/
+│   └── work/                   # WorkManager background sync, BgmSyncWorker, periodic & one-time sync manager
 ├── worker (moved)              # OAuth token-exchange proxy: maintained in a separate private Cloudflare Workers repo; deploys to bgmplus-auth.shadow2go.dpdns.org via its own CI
 └── feature/                    # (Scaffolded with convention plugin bgmplus.android.feature)
     ├── schedule/               # Weekly on-air schedule & countdown
-    ├── subject/                # Subject detail & episode list
-    ├── user/                   # Collections & profile
-    └── search/                 # Search & tag discovery
+    ├── subject/                # Subject detail, cast/staff, episode grouping, bottom sheets & custom tabs
+    ├── user/                   # Collections browsing, multi-account management & quick progress tracking
+    └── search/                 # Seasonal discovery, search & multi-dimensional tag filtering
 ```
 
 ## Module Rules
@@ -43,18 +45,21 @@ BgmPlus/
 3. **Single source of truth**: repositories in `:core:data` coordinate `:core:network` and `:core:database`; UI layers never touch network or database directly.
 4. **Convention plugins first**: new modules apply a `bgmplus.*` plugin from the catalog instead of hand-configuring Android/Kotlin settings.
 5. **Lightweight module docs**: module-level `README.md` files only declare **scope/responsibilities**, **dependency topology**, and **architectural invariants/redlines** — avoid internal implementation details or class inventories to prevent documentation rot.
-6. **Navigation**: app uses **Navigation 3** (`androidx.navigation3`) — `@Serializable` `NavKey` routes declared in `:core:navigation`, rendered by `NavDisplay` in `:app`; per-tab `NavBackStack`s live in `BgmNavState` (exit-through-home, survives process death). Don't relocate route contracts or rewire the navigation stack without a deliberate decision.
+6. **Navigation**: app uses **Navigation 3** (`androidx.navigation3`) — `@Serializable` `NavKey` routes declared in `:core:navigation` (`BgmRoutes.kt`), rendered by `NavDisplay` in `:app`; per-tab `NavBackStack`s live in `BgmNavState` (exit-through-home, survives process death). Don't relocate route contracts or rewire the navigation stack without a deliberate decision.
 
 ## Coding Guidelines
 
 ### Architecture & State
 - Unidirectional Data Flow (MVI): ViewModels expose a single, immutable `StateFlow<UiState>`; one-off events (snackbars, navigation) go through `Channel`/`SharedFlow`.
 - Wrap data/domain operations in `AppResult<T>` (`Success`/`Error`/`Loading`, defined in `:core:common`).
+- Mutating repository operations and critical writes (e.g. check-ins, collection status updates) must be guarded with `withContext(NonCancellable)` so that navigating away from a screen or ViewModel destruction does not cancel in-flight network synchronization.
 
 ### Network (Ktor 3)
 - Every `BgmHttpClient` request carries `User-Agent: BgmPlus/<versionName> (android) (https://github.com/infinitezerone/BgmPlus)` via `DefaultRequest` — never strip or override it; keep the version string in sync with the app's `versionName`.
 - Reuse `BgmHttpClient.jsonConfig` (`ignoreUnknownKeys`, `isLenient`, `coerceInputValues`, ...) instead of hand-rolling `Json` instances.
 - Errors surface as typed `BgmNetworkException` subclasses (`Unauthorized`, `Forbidden`, `NotFound`, `RateLimited`, `ServerError`, `Unknown`), mapped from HTTP status codes.
+- The Ktor Auth plugin is configured with `sendWithoutRequest { true }` to proactively attach the Bearer token to business requests.
+- Bangumi API convention: GET queries for user collections require explicit `{username}` / `{user_id}` (passing `-` yields 404), while mutating endpoints (POST/PATCH/PUT) use `/users/-/collections/...`.
 - Business API calls go direct to `api.bgm.tv`; only token exchange/refresh goes through the Cloudflare Worker proxy. The Ktor auth plugin auto-refreshes on 401 and clears credentials on unrecoverable refresh failures (auto-logout).
 - OAuth code redemption is guarded by a Worker-enforced PKCE equivalent (bgm.tv lacks PKCE): `BgmPkce` generates a local `verifier` whose `sha256` fingerprint rides as the OAuth `state`; the exchange must carry `code + state + verifier` or the Worker rejects with `verifier_mismatch`. Never bypass or weaken this check.
 
