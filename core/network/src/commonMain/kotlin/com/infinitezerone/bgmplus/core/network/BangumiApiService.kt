@@ -160,7 +160,7 @@ class BangumiApiServiceImpl(
 
     @Serializable
     private data class EpisodeStatusUpdateBody(
-        val episode_id: Long,
+        val episode_id: List<Long>,
         val type: Int,
     )
 
@@ -172,7 +172,7 @@ class BangumiApiServiceImpl(
     ) {
         client.patch("$baseUrl/v0/users/-/collections/$subjectId/episodes") {
             contentType(ContentType.Application.Json)
-            setBody(EpisodeStatusUpdateBody(episode_id = episodeId, type = type))
+            setBody(EpisodeStatusUpdateBody(episode_id = listOf(episodeId), type = type))
         }
     }
 }
