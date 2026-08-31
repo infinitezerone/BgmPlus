@@ -30,6 +30,10 @@ class BgmSyncWorker(
         }
 
     companion object {
+        const val TAG = "BgmSyncWorker"
+        const val STARTUP_SYNC_WORK_NAME = "BgmStartupSyncWork"
+        const val PERIODIC_SYNC_WORK_NAME = "BgmPeriodicSyncWork"
+        const val MANUAL_SYNC_WORK_NAME = "BgmManualSyncWork"
         const val SYNC_WORK_NAME = "BgmSyncWork"
     }
 }

@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.map
 
 /**
  * 基于 WorkManager 实现的 SyncManager：
- * 监听唯一工作任务状态流以获得 isSyncing 状态，并支持即时触发单次同步。
+ * 监听统一 Tag 状态流以获得 isSyncing 状态，并支持即时触发单次同步。
  */
 class WorkManagerSyncManager(
     private val context: Context,
@@ -22,7 +22,7 @@ class WorkManagerSyncManager(
     override val isSyncing: Flow<Boolean> =
         WorkManager
             .getInstance(context)
-            .getWorkInfosForUniqueWorkFlow(BgmSyncWorker.SYNC_WORK_NAME)
+            .getWorkInfosByTagFlow(BgmSyncWorker.TAG)
             .map { list -> list.any { it.state == WorkInfo.State.RUNNING } }
             .conflate()
 
@@ -30,12 +30,13 @@ class WorkManagerSyncManager(
         val workRequest =
             OneTimeWorkRequestBuilder<BgmSyncWorker>()
                 .setConstraints(SyncConstraints)
+                .addTag(BgmSyncWorker.TAG)
                 .build()
 
         WorkManager
             .getInstance(context)
             .enqueueUniqueWork(
-                BgmSyncWorker.SYNC_WORK_NAME,
+                BgmSyncWorker.MANUAL_SYNC_WORK_NAME,
                 ExistingWorkPolicy.KEEP,
                 workRequest,
             )

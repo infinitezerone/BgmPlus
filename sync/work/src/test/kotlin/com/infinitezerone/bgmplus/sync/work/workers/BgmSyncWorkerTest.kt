@@ -115,24 +115,24 @@ class BgmSyncWorkerTest {
     @Test
     fun doWork_returnsSuccess_whenRepositorySucceeds() =
         runTest(testDispatcher) {
-            scheduleRepository.refreshResult = AppResult.Success(Unit)
+            scheduleRepository.syncBangumiDataResult = AppResult.Success(Unit)
             val worker = createWorker()
 
             val result = worker.doWork()
 
             assertEquals(ListenableWorker.Result.success(), result)
-            assertEquals(1, scheduleRepository.refreshCallCount)
+            assertEquals(1, scheduleRepository.syncBangumiDataCallCount)
         }
 
     @Test
     fun doWork_returnsRetry_whenRepositoryFails() =
         runTest(testDispatcher) {
-            scheduleRepository.refreshResult = AppResult.Error(IllegalStateException("Network failure"))
+            scheduleRepository.syncBangumiDataResult = AppResult.Error(IllegalStateException("Network failure"))
             val worker = createWorker()
 
             val result = worker.doWork()
 
             assertEquals(ListenableWorker.Result.retry(), result)
-            assertEquals(1, scheduleRepository.refreshCallCount)
+            assertEquals(1, scheduleRepository.syncBangumiDataCallCount)
         }
 }
