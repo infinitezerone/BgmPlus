@@ -7,6 +7,9 @@ import com.infinitezerone.bgmplus.core.model.BangumiDataItem
 import com.infinitezerone.bgmplus.core.model.BangumiDataSite
 import com.infinitezerone.bgmplus.core.model.SearchSubjectsRequest
 import com.infinitezerone.bgmplus.core.model.Subject
+import com.infinitezerone.bgmplus.core.model.SubjectCharacter
+import com.infinitezerone.bgmplus.core.model.SubjectPerson
+import com.infinitezerone.bgmplus.core.model.SubjectRelation
 import com.infinitezerone.bgmplus.core.network.BangumiApiService
 import com.infinitezerone.bgmplus.core.network.BangumiDataResult
 import com.infinitezerone.bgmplus.core.network.BangumiDataService
@@ -55,6 +58,12 @@ class ScheduleRepositoryImplTest {
         override suspend fun getCalendar(): List<CalendarDayResponse> = calendarDays
 
         override suspend fun getSubject(id: Long): Subject = error("Not implemented")
+
+        override suspend fun getSubjectCharacters(id: Long): List<SubjectCharacter> = error("Not implemented")
+
+        override suspend fun getSubjectPersons(id: Long): List<SubjectPerson> = error("Not implemented")
+
+        override suspend fun getSubjectRelations(id: Long): List<SubjectRelation> = error("Not implemented")
 
         override suspend fun getEpisodes(
             subjectId: Long,

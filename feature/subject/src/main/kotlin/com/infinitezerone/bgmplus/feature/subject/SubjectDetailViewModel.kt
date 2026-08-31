@@ -2,13 +2,18 @@ package com.infinitezerone.bgmplus.feature.subject
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.infinitezerone.bgmplus.core.common.AppResult
 import com.infinitezerone.bgmplus.core.common.onError
 import com.infinitezerone.bgmplus.core.data.repository.CollectionRepository
 import com.infinitezerone.bgmplus.core.data.repository.SubjectRepository
 import com.infinitezerone.bgmplus.core.model.CollectionType
 import com.infinitezerone.bgmplus.core.model.Episode
 import com.infinitezerone.bgmplus.core.model.Subject
+import com.infinitezerone.bgmplus.core.model.SubjectCharacter
+import com.infinitezerone.bgmplus.core.model.SubjectPerson
+import com.infinitezerone.bgmplus.core.model.SubjectRelation
 import com.infinitezerone.bgmplus.core.model.UserCollection
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +27,9 @@ data class SubjectDetailUiState(
     val subject: Subject? = null,
     val episodes: List<Episode> = emptyList(),
     val collection: UserCollection? = null,
+    val characters: List<SubjectCharacter> = emptyList(),
+    val persons: List<SubjectPerson> = emptyList(),
+    val relations: List<SubjectRelation> = emptyList(),
 )
 
 class SubjectDetailViewModel(
@@ -55,20 +63,37 @@ class SubjectDetailViewModel(
         }
     }
 
-    /** 刷新/重新拉取条目、分集与收藏数据 */
+    /** 刷新/重新拉取条目、分集、角色、制作团队、关联作品与收藏数据 */
     fun refresh() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            subjectRepository
-                .fetchSubjectDetail(subjectId)
-                .onError { _, message -> _uiState.update { it.copy(error = message) } }
-            subjectRepository
-                .fetchEpisodes(subjectId)
-                .onError { _, message -> _uiState.update { it.copy(error = message) } }
-            collectionRepository
-                ?.fetchCollection(subjectId)
-                ?.onError { _, message -> _uiState.update { it.copy(error = message) } }
-            _uiState.update { it.copy(isLoading = false) }
+
+            val subjectDeferred = async { subjectRepository.fetchSubjectDetail(subjectId) }
+            val episodesDeferred = async { subjectRepository.fetchEpisodes(subjectId) }
+            val collectionDeferred = async { collectionRepository?.fetchCollection(subjectId) }
+            val charactersDeferred = async { subjectRepository.fetchCharacters(subjectId) }
+            val personsDeferred = async { subjectRepository.fetchPersons(subjectId) }
+            val relationsDeferred = async { subjectRepository.fetchRelations(subjectId) }
+
+            val subjectResult = subjectDeferred.await()
+            val episodesResult = episodesDeferred.await()
+            val collectionResult = collectionDeferred.await()
+            val charactersResult = charactersDeferred.await()
+            val personsResult = personsDeferred.await()
+            val relationsResult = relationsDeferred.await()
+
+            subjectResult.onError { _, message -> _uiState.update { it.copy(error = message) } }
+            episodesResult.onError { _, message -> _uiState.update { it.copy(error = message) } }
+            collectionResult?.onError { _, message -> _uiState.update { it.copy(error = message) } }
+
+            _uiState.update { current ->
+                current.copy(
+                    isLoading = false,
+                    characters = (charactersResult as? AppResult.Success)?.data ?: current.characters,
+                    persons = (personsResult as? AppResult.Success)?.data ?: current.persons,
+                    relations = (relationsResult as? AppResult.Success)?.data ?: current.relations,
+                )
+            }
         }
     }
 

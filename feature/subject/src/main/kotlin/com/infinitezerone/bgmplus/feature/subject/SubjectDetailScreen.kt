@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -79,6 +80,9 @@ import com.infinitezerone.bgmplus.core.designsystem.component.CoverImage
 import com.infinitezerone.bgmplus.core.model.CollectionType
 import com.infinitezerone.bgmplus.core.model.Episode
 import com.infinitezerone.bgmplus.core.model.Subject
+import com.infinitezerone.bgmplus.core.model.SubjectCharacter
+import com.infinitezerone.bgmplus.core.model.SubjectPerson
+import com.infinitezerone.bgmplus.core.model.SubjectRelation
 import com.infinitezerone.bgmplus.core.model.UserCollection
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -89,6 +93,7 @@ import kotlin.math.roundToInt
 fun SubjectDetailScreen(
     subjectId: Long,
     onBackClick: () -> Unit,
+    onSubjectClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SubjectDetailViewModel = koinViewModel(parameters = { parametersOf(subjectId) }),
 ) {
@@ -245,6 +250,27 @@ fun SubjectDetailScreen(
                             )
                         }
 
+                        if (uiState.relations.isNotEmpty()) {
+                            item(key = "relations_section") {
+                                RelationsSection(
+                                    relations = uiState.relations,
+                                    onSubjectClick = onSubjectClick,
+                                )
+                            }
+                        }
+
+                        if (uiState.characters.isNotEmpty()) {
+                            item(key = "characters_section") {
+                                CharactersSection(characters = uiState.characters)
+                            }
+                        }
+
+                        if (uiState.persons.isNotEmpty()) {
+                            item(key = "staff_section") {
+                                StaffSection(persons = uiState.persons)
+                            }
+                        }
+
                         item(key = "episodes_header") {
                             EpisodesSectionHeader(
                                 totalEpisodes = uiState.episodes.size,
@@ -311,6 +337,308 @@ fun SubjectDetailScreen(
                 )
             },
         )
+    }
+}
+
+/** 关联作品区域 */
+@Composable
+private fun RelationsSection(
+    relations: List<SubjectRelation>,
+    onSubjectClick: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = "关联作品",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 0.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            items(items = relations, key = { "${it.id}_${it.relation}" }) { relation ->
+                RelationCard(
+                    relation = relation,
+                    onClick = { onSubjectClick(relation.id) },
+                )
+            }
+        }
+    }
+}
+
+/** 关联作品卡片 */
+@Composable
+private fun RelationCard(
+    relation: SubjectRelation,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.width(120.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                CoverImage(
+                    url = relation.images?.bestImage.orEmpty(),
+                    contentDescription = relation.displayName,
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 8.dp,
+                    aspectRatio = 0.7f,
+                )
+                if (relation.relation.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                        modifier = Modifier.align(Alignment.TopStart),
+                    ) {
+                        Text(
+                            text = relation.relation,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = relation.displayName,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            if (relation.score > 0.0) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Text(
+                        text = relation.score.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 登场角色与声优区域 */
+@Composable
+private fun CharactersSection(
+    characters: List<SubjectCharacter>,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = "登场角色与声优",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 0.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            items(items = characters, key = { it.id }) { character ->
+                CharacterCard(character = character)
+            }
+        }
+    }
+}
+
+/** 角色卡片：角色头像、姓名、定位 (主角/配角)、CV 信息 */
+@Composable
+private fun CharacterCard(
+    character: SubjectCharacter,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.width(130.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                CoverImage(
+                    url = character.images?.bestImage.orEmpty(),
+                    contentDescription = character.name,
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 8.dp,
+                    aspectRatio = 0.75f,
+                )
+                if (character.roleName.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f),
+                        modifier = Modifier.align(Alignment.TopStart),
+                    ) {
+                        Text(
+                            text = character.roleName,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = character.name,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            val actor = character.actors.firstOrNull()
+            if (actor != null && actor.name.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    val actorImage = actor.images?.bestImage.orEmpty()
+                    if (actorImage.isNotBlank()) {
+                        CoverImage(
+                            url = actorImage,
+                            contentDescription = actor.name,
+                            modifier = Modifier.size(18.dp),
+                            cornerRadius = 9.dp,
+                            aspectRatio = 1f,
+                        )
+                    }
+                    Text(
+                        text = "CV: ${actor.name}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 制作团队区域 */
+@Composable
+private fun StaffSection(
+    persons: List<SubjectPerson>,
+    modifier: Modifier = Modifier,
+) {
+    var isExpanded by rememberSaveable { mutableStateOf(false) }
+    val groupedStaff = persons.groupBy({ it.relation }, { it.name })
+    val entries = groupedStaff.entries.toList()
+    val displayEntries = if (isExpanded || entries.size <= 6) entries else entries.take(6)
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = "制作团队",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+        ) {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                displayEntries.forEach { (relation, names) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Text(
+                            text = relation,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.width(84.dp),
+                        )
+                        Text(
+                            text = names.joinToString("、"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                if (entries.size > 6) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { isExpanded = !isExpanded }
+                                .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = if (isExpanded) "收起制作团队" else "查看完整制作团队 (${entries.size})",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -112,3 +112,86 @@ val sampleUserCollection =
         updatedAt = "2026-08-31T09:00:00Z",
         subject = sampleSubject,
     )
+
+val sampleCharacterList =
+    listOf(
+        com.infinitezerone.bgmplus.core.model.SubjectCharacter(
+            id = 3001L,
+            name = "フリーレン",
+            roleName = "主角",
+            images =
+                SubjectImages(
+                    large = "https://lain.bgm.tv/pic/crt/l/sample_frieren.jpg",
+                    medium = "https://lain.bgm.tv/pic/crt/m/sample_frieren.jpg",
+                ),
+            actors =
+                listOf(
+                    com.infinitezerone.bgmplus.core.model.SubjectPerson(
+                        id = 4001L,
+                        name = "種﨑敦美",
+                        type = 1,
+                        relation = "声优",
+                        images =
+                            SubjectImages(
+                                large = "https://lain.bgm.tv/pic/crt/l/sample_tanezaki.jpg",
+                            ),
+                    ),
+                ),
+        ),
+        com.infinitezerone.bgmplus.core.model.SubjectCharacter(
+            id = 3002L,
+            name = "フェルン",
+            roleName = "主角",
+            images =
+                SubjectImages(
+                    large = "https://lain.bgm.tv/pic/crt/l/sample_fern.jpg",
+                ),
+            actors =
+                listOf(
+                    com.infinitezerone.bgmplus.core.model.SubjectPerson(
+                        id = 4002L,
+                        name = "市ノ瀬加那",
+                        type = 1,
+                        relation = "声优",
+                    ),
+                ),
+        ),
+    )
+
+val samplePersonList =
+    listOf(
+        com.infinitezerone.bgmplus.core.model.SubjectPerson(
+            id = 5001L,
+            name = "斎藤圭一郎",
+            type = 1,
+            relation = "导演",
+        ),
+        com.infinitezerone.bgmplus.core.model.SubjectPerson(
+            id = 5002L,
+            name = "Evan Call",
+            type = 1,
+            relation = "音乐",
+        ),
+        com.infinitezerone.bgmplus.core.model.SubjectPerson(
+            id = 5003L,
+            name = "マッドハウス",
+            type = 2,
+            relation = "动画制作",
+        ),
+    )
+
+val sampleRelationList =
+    listOf(
+        com.infinitezerone.bgmplus.core.model.SubjectRelation(
+            id = 6001L,
+            type = 2,
+            name = "葬送のフリーレン 第2期",
+            nameCn = "葬送的芙莉莲 第二季",
+            relation = "续作",
+            images =
+                SubjectImages(
+                    large = "https://lain.bgm.tv/pic/cover/l/sample_frieren_s2.jpg",
+                ),
+            ratingScore = 9.0,
+        ),
+    )

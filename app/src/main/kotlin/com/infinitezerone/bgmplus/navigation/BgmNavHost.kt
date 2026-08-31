@@ -44,7 +44,12 @@ fun BgmNavHost(
                         onBackClick = { navState.goBack() },
                     )
 
-                    subjectEntry(onBackClick = { navState.goBack() })
+                    subjectEntry(
+                        onBackClick = { navState.goBack() },
+                        onSubjectClick = { subjectId ->
+                            navState.navigateTo(SubjectDetailRoute(subjectId))
+                        },
+                    )
 
                     searchEntry(
                         onSubjectClick = {

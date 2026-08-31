@@ -7,7 +7,10 @@ import com.infinitezerone.bgmplus.core.database.entity.EpisodeEntity
 import com.infinitezerone.bgmplus.core.database.entity.SubjectEntity
 import com.infinitezerone.bgmplus.core.model.Episode
 import com.infinitezerone.bgmplus.core.model.Subject
+import com.infinitezerone.bgmplus.core.model.SubjectCharacter
 import com.infinitezerone.bgmplus.core.model.SubjectImages
+import com.infinitezerone.bgmplus.core.model.SubjectPerson
+import com.infinitezerone.bgmplus.core.model.SubjectRelation
 import com.infinitezerone.bgmplus.core.network.BangumiApiService
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -20,6 +23,12 @@ interface SubjectRepository {
     fun getEpisodesStream(subjectId: Long): Flow<List<Episode>>
 
     suspend fun fetchEpisodes(subjectId: Long): AppResult<List<Episode>>
+
+    suspend fun fetchCharacters(subjectId: Long): AppResult<List<SubjectCharacter>>
+
+    suspend fun fetchPersons(subjectId: Long): AppResult<List<SubjectPerson>>
+
+    suspend fun fetchRelations(subjectId: Long): AppResult<List<SubjectRelation>>
 }
 
 class SubjectRepositoryImpl(
@@ -100,6 +109,30 @@ class SubjectRepositoryImpl(
                 }
             episodeDao.insertEpisodes(entities)
             AppResult.Success(response.data)
+        } catch (e: Throwable) {
+            AppResult.Error(e)
+        }
+
+    override suspend fun fetchCharacters(subjectId: Long): AppResult<List<SubjectCharacter>> =
+        try {
+            val response = apiService.getSubjectCharacters(subjectId)
+            AppResult.Success(response)
+        } catch (e: Throwable) {
+            AppResult.Error(e)
+        }
+
+    override suspend fun fetchPersons(subjectId: Long): AppResult<List<SubjectPerson>> =
+        try {
+            val response = apiService.getSubjectPersons(subjectId)
+            AppResult.Success(response)
+        } catch (e: Throwable) {
+            AppResult.Error(e)
+        }
+
+    override suspend fun fetchRelations(subjectId: Long): AppResult<List<SubjectRelation>> =
+        try {
+            val response = apiService.getSubjectRelations(subjectId)
+            AppResult.Success(response)
         } catch (e: Throwable) {
             AppResult.Error(e)
         }
