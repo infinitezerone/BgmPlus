@@ -87,6 +87,9 @@ class SubjectRepositoryImpl(
                     nameCn = it.nameCn,
                     duration = it.duration,
                     airdate = it.airdate,
+                    type = it.type,
+                    desc = it.desc,
+                    comment = it.comment,
                 )
             }
         }
@@ -105,6 +108,9 @@ class SubjectRepositoryImpl(
                         nameCn = it.nameCn,
                         duration = it.duration,
                         airdate = it.airdate,
+                        type = it.type,
+                        desc = it.desc,
+                        comment = it.comment,
                     )
                 }
             episodeDao.insertEpisodes(entities)

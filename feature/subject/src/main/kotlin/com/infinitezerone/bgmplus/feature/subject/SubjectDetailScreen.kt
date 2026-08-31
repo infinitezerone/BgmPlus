@@ -27,7 +27,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FormatListNumbered
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.StarBorder
@@ -68,6 +71,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -106,6 +110,21 @@ fun SubjectDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCollectionSheet by rememberSaveable { mutableStateOf(false) }
     var isGridView by rememberSaveable { mutableStateOf(false) }
+    var selectedEpisodeForDetail by remember { mutableStateOf<Episode?>(null) }
+
+    val groupedEpisodes =
+        remember(uiState.episodes) {
+            uiState.episodes.groupBy { EpisodeGroup.fromType(it.type) }
+        }
+    val availableGroups =
+        remember(groupedEpisodes) {
+            EpisodeGroup.entries.filter { groupedEpisodes.containsKey(it) }
+        }
+    var selectedGroup by rememberSaveable(availableGroups) {
+        mutableStateOf(availableGroups.firstOrNull() ?: EpisodeGroup.MAIN)
+    }
+    val activeGroup = if (selectedGroup in availableGroups) selectedGroup else availableGroups.firstOrNull() ?: EpisodeGroup.MAIN
+    val currentEpisodes = groupedEpisodes[activeGroup] ?: emptyList()
 
     Scaffold(
         topBar = {
@@ -285,16 +304,29 @@ fun SubjectDetailScreen(
                             }
                         }
 
+                        val watchedInGroup = currentEpisodes.count { isEpisodeWatched(it, uiState.collection?.epStatus ?: 0) }
+
                         item(key = "episodes_header") {
                             EpisodesSectionHeader(
-                                totalEpisodes = uiState.episodes.size,
-                                watchedEpisodes = uiState.collection?.epStatus ?: 0,
+                                totalEpisodes = currentEpisodes.size,
+                                watchedEpisodes = watchedInGroup,
                                 isGridView = isGridView,
                                 onToggleView = { isGridView = !isGridView },
                             )
                         }
 
-                        if (uiState.episodes.isEmpty()) {
+                        if (availableGroups.size > 1) {
+                            item(key = "episode_group_chips") {
+                                EpisodeGroupFilterChips(
+                                    availableGroups = availableGroups,
+                                    groupedEpisodes = groupedEpisodes,
+                                    selectedGroup = activeGroup,
+                                    onGroupSelected = { selectedGroup = it },
+                                )
+                            }
+                        }
+
+                        if (currentEpisodes.isEmpty()) {
                             item(key = "episodes_empty") {
                                 Box(
                                     modifier =
@@ -313,21 +345,23 @@ fun SubjectDetailScreen(
                         } else if (isGridView) {
                             item(key = "episodes_grid") {
                                 EpisodeGrid(
-                                    episodes = uiState.episodes,
+                                    episodes = currentEpisodes,
                                     watchedCount = uiState.collection?.epStatus ?: 0,
-                                    onToggleWatched = { episode, isWatched ->
-                                        val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
-                                        viewModel.toggleEpisodeWatched(episode.id, isWatched, epNumber)
+                                    onEpisodeClick = { episode ->
+                                        selectedEpisodeForDetail = episode
                                     },
                                 )
                             }
                         } else {
-                            items(items = uiState.episodes, key = { it.id }) { episode ->
+                            items(items = currentEpisodes, key = { it.id }) { episode ->
                                 val isWatched = isEpisodeWatched(episode, uiState.collection?.epStatus ?: 0)
                                 val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
                                 EpisodeListItem(
                                     episode = episode,
                                     isWatched = isWatched,
+                                    onClick = {
+                                        selectedEpisodeForDetail = episode
+                                    },
                                     onToggleWatched = {
                                         viewModel.toggleEpisodeWatched(episode.id, !isWatched, epNumber)
                                     },
@@ -351,6 +385,19 @@ fun SubjectDetailScreen(
                     comment = comment,
                     private = private,
                 )
+            },
+        )
+    }
+
+    selectedEpisodeForDetail?.let { ep ->
+        val isWatched = isEpisodeWatched(ep, uiState.collection?.epStatus ?: 0)
+        EpisodeDetailBottomSheet(
+            episode = ep,
+            isWatched = isWatched,
+            onDismiss = { selectedEpisodeForDetail = null },
+            onToggleWatched = { episode, watched ->
+                val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
+                viewModel.toggleEpisodeWatched(episode.id, watched, epNumber)
             },
         )
     }
@@ -1511,15 +1558,76 @@ private fun EpisodesSectionHeader(
     }
 }
 
+/** 分集类型分组枚举 */
+enum class EpisodeGroup(
+    val label: String,
+) {
+    MAIN("本篇"),
+    SP("特别篇"),
+    OP_ED("OP/ED"),
+    OTHER("其他"),
+    ;
+
+    companion object {
+        fun fromType(type: Int): EpisodeGroup =
+            when (type) {
+                0 -> MAIN
+                1 -> SP
+                2, 3 -> OP_ED
+                else -> OTHER
+            }
+    }
+}
+
+/** 分集类型筛选 Chip 栏 */
+@Composable
+private fun EpisodeGroupFilterChips(
+    availableGroups: List<EpisodeGroup>,
+    groupedEpisodes: Map<EpisodeGroup, List<Episode>>,
+    selectedGroup: EpisodeGroup,
+    onGroupSelected: (EpisodeGroup) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 0.dp),
+    ) {
+        items(items = availableGroups, key = { it.name }) { group ->
+            val count = groupedEpisodes[group]?.size ?: 0
+            val isSelected = group == selectedGroup
+            FilterChip(
+                selected = isSelected,
+                onClick = { onGroupSelected(group) },
+                label = { Text("${group.label} ($count)") },
+                leadingIcon =
+                    if (isSelected) {
+                        {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+            )
+        }
+    }
+}
+
 /** 分集列表项（列表模式） */
 @Composable
 private fun EpisodeListItem(
     episode: Episode,
     isWatched: Boolean,
+    onClick: () -> Unit,
     onToggleWatched: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         colors =
             CardDefaults.cardColors(
@@ -1548,8 +1656,15 @@ private fun EpisodeListItem(
                         MaterialTheme.colorScheme.surfaceContainerHighest
                     },
             ) {
+                val group = EpisodeGroup.fromType(episode.type)
+                val epLabel =
+                    if (episode.type == 0) {
+                        "第 ${episode.ep.toEpisodeLabel()} 话"
+                    } else {
+                        "${group.label} ${episode.sort.toInt()}"
+                    }
                 Text(
-                    text = "第 ${episode.ep.toEpisodeLabel()} 话",
+                    text = epLabel,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color =
@@ -1570,10 +1685,16 @@ private fun EpisodeListItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (episode.airdate.isNotBlank()) {
+                val subtitleParts =
+                    buildList {
+                        if (episode.airdate.isNotBlank()) add("放送：${episode.airdate}")
+                        if (episode.duration.isNotBlank()) add(episode.duration)
+                        if (episode.comment > 0) add("吐槽 ${episode.comment}")
+                    }
+                if (subtitleParts.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "放送：${episode.airdate}",
+                        text = subtitleParts.joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1610,7 +1731,7 @@ private fun EpisodeListItem(
 private fun EpisodeGrid(
     episodes: List<Episode>,
     watchedCount: Int,
-    onToggleWatched: (episode: Episode, isWatched: Boolean) -> Unit,
+    onEpisodeClick: (Episode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -1624,6 +1745,19 @@ private fun EpisodeGrid(
             ) {
                 rowEpisodes.forEach { episode ->
                     val isWatched = isEpisodeWatched(episode, watchedCount)
+                    val label =
+                        if (episode.type == 0) {
+                            episode.ep.toEpisodeLabel()
+                        } else {
+                            val prefix =
+                                when (episode.type) {
+                                    1 -> "SP"
+                                    2 -> "OP"
+                                    3 -> "ED"
+                                    else -> "E"
+                                }
+                            "$prefix${episode.sort.toInt()}"
+                        }
                     Box(
                         modifier =
                             Modifier
@@ -1636,7 +1770,7 @@ private fun EpisodeGrid(
                                     } else {
                                         MaterialTheme.colorScheme.surfaceContainerLow
                                     },
-                                ).clickable { onToggleWatched(episode, !isWatched) },
+                                ).clickable { onEpisodeClick(episode) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(
@@ -1644,7 +1778,7 @@ private fun EpisodeGrid(
                             verticalArrangement = Arrangement.Center,
                         ) {
                             Text(
-                                text = episode.ep.toEpisodeLabel(),
+                                text = label,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color =
@@ -1668,6 +1802,230 @@ private fun EpisodeGrid(
                 // 补齐末行空位保持对齐
                 repeat(6 - rowEpisodes.size) {
                     Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+/** 单集详情 BottomSheet */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun EpisodeDetailBottomSheet(
+    episode: Episode,
+    isWatched: Boolean,
+    onDismiss: () -> Unit,
+    onToggleWatched: (episode: Episode, isWatched: Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val group = EpisodeGroup.fromType(episode.type)
+    val episodeNumberText =
+        if (episode.type == 0) {
+            "第 ${episode.ep.toEpisodeLabel()} 话"
+        } else {
+            "${group.label} ${episode.sort.toInt()}"
+        }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // 1. 分集序号与标题 (中文名 & 原名)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Text(
+                            text = episodeNumberText,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+
+                    if (episode.type != 0) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Text(
+                                text = group.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    text = episode.displayTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+
+                if (episode.name.isNotBlank() && episode.name != episode.displayTitle) {
+                    Text(
+                        text = episode.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // 2. 放送时间、时长、吐槽数等 Chip 标签
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (episode.airdate.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.DateRange,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = "放送：${episode.airdate}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+
+                if (episode.duration.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Schedule,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = "时长：${episode.duration}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+
+                if (episode.comment > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.ChatBubbleOutline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = "吐槽 ${episode.comment}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            // 3. 剧情梗概 (Full desc)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "剧情梗概",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = if (episode.desc.isNotBlank()) episode.desc.trim() else "暂无分集剧情简介",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color =
+                        if (episode.desc.isNotBlank()) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 4. "已看过 / 未看" toggle button with instant check-in
+            if (isWatched) {
+                FilledTonalButton(
+                    onClick = {
+                        onToggleWatched(episode, false)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "已看过 · 点击取消打卡")
+                }
+            } else {
+                Button(
+                    onClick = {
+                        onToggleWatched(episode, true)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "标记为看过 (打卡)")
                 }
             }
         }

@@ -29,6 +29,9 @@ data class EpisodeEntity(
     val nameCn: String,
     val duration: String,
     val airdate: String,
+    val type: Int = 0,
+    val desc: String = "",
+    val comment: Int = 0,
     val isCollected: Boolean = false,
 )
 
