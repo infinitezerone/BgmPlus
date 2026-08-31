@@ -5,6 +5,7 @@ import com.infinitezerone.bgmplus.core.common.TimeUtils
 import com.infinitezerone.bgmplus.core.database.dao.AirScheduleDao
 import com.infinitezerone.bgmplus.core.database.entity.AirScheduleEntity
 import com.infinitezerone.bgmplus.core.model.AirSchedule
+import com.infinitezerone.bgmplus.core.model.BangumiDataSite
 import com.infinitezerone.bgmplus.core.model.SiteLink
 import com.infinitezerone.bgmplus.core.network.BangumiApiService
 import com.infinitezerone.bgmplus.core.network.BangumiDataService
@@ -57,13 +58,7 @@ class ScheduleRepositoryImpl(
                     val beginUtc = dataItem?.begin ?: ""
 
                     val siteLinks =
-                        dataItem?.sites?.map { s ->
-                            SiteLink(
-                                siteName = s.site,
-                                displayName = formatSiteName(s.site),
-                                playUrl = s.url.ifBlank { "https://${s.site}.com" },
-                            )
-                        } ?: emptyList()
+                        dataItem?.sites?.mapNotNull { s -> resolveSiteLink(s) } ?: emptyList()
 
                     val coverUrl =
                         (subject.images?.bestImage ?: "").replace("http://", "https://")
@@ -99,16 +94,51 @@ class ScheduleRepositoryImpl(
             AppResult.Error(e)
         }
 
-    private fun formatSiteName(site: String): String =
-        when (site.lowercase()) {
-            "bilibili" -> "哔哩哔哩"
-            "bahamut" -> "巴哈姆特"
-            "iqiyi" -> "爱奇艺"
-            "qq" -> "腾讯视频"
-            "youku" -> "优酷"
-            "netflix" -> "Netflix"
-            else -> site
-        }
+    private fun resolveSiteLink(site: BangumiDataSite): SiteLink? {
+        val siteKey = site.site.lowercase()
+        val id = site.id
+        val rawUrl = site.url.ifBlank { "" }
+
+        val (displayName, url) =
+            when (siteKey) {
+                "bilibili" ->
+                    "哔哩哔哩" to
+                        rawUrl.ifBlank {
+                            if (id.startsWith("http")) {
+                                id
+                            } else if (id.startsWith("md")) {
+                                "https://www.bilibili.com/bangumi/media/$id"
+                            } else if (id.startsWith("ss")) {
+                                "https://www.bilibili.com/bangumi/play/$id"
+                            } else {
+                                "https://www.bilibili.com/bangumi/media/md$id"
+                            }
+                        }
+                "gamer", "gamer_hk" -> "巴哈姆特" to rawUrl.ifBlank { "https://ani.gamer.com.tw/animeVideo.php?sn=$id" }
+                "iqiyi" -> "爱奇艺" to rawUrl.ifBlank { "https://www.iqiyi.com/v_$id.html" }
+                "qq" -> "腾讯视频" to rawUrl.ifBlank { "https://v.qq.com/x/cover/$id.html" }
+                "youku" -> "优酷" to rawUrl.ifBlank { "https://v.youku.com/v_show/id_$id.html" }
+                "netflix" -> "Netflix" to rawUrl.ifBlank { "https://www.netflix.com/title/$id" }
+                "danime" -> "d动画" to rawUrl.ifBlank { "https://animestore.docomo.ne.jp/animestore/ci_pc?workId=$id" }
+                "abema" -> "ABEMA" to rawUrl.ifBlank { "https://abema.tv/channels/$id" }
+                "unext" -> "U-NEXT" to rawUrl.ifBlank { "https://video.unext.jp/title/$id" }
+                "prime" -> "Prime Video" to rawUrl.ifBlank { "https://www.amazon.co.jp/dp/$id" }
+                "disneyplus" -> "Disney+" to rawUrl.ifBlank { "https://www.disneyplus.com/series/$id" }
+                "crunchyroll" -> "Crunchyroll" to rawUrl.ifBlank { "https://www.crunchyroll.com/series/$id" }
+                "muse_tw", "muse_hk" -> "木棉花" to rawUrl.ifBlank { "https://www.youtube.com/playlist?list=$id" }
+                "ani_one", "ani_one_asia" -> "羚邦" to rawUrl.ifBlank { "https://www.youtube.com/playlist?list=$id" }
+                "nicovideo" -> "NicoNico" to rawUrl.ifBlank { "https://ch.nicovideo.jp/$id" }
+                "mikan" -> "蜜柑计划" to rawUrl.ifBlank { "https://mikanani.me/Home/Bangumi/$id" }
+                else -> return null // 过滤 mal, anidb, aniList, tmdb, bangumi 等元数据站点
+            }
+
+        if (url.isBlank()) return null
+        return SiteLink(
+            siteName = siteKey,
+            displayName = displayName,
+            playUrl = url,
+        )
+    }
 
     private fun AirScheduleEntity.toModel(json: Json): AirSchedule {
         val links: List<SiteLink> =
