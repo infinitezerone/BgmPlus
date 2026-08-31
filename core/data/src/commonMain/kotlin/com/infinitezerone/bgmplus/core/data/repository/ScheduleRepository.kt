@@ -51,8 +51,8 @@ class ScheduleRepositoryImpl(
                     val bgmId = subject.id
                     val dataItem = bgmMap[bgmId]
 
-                    // 若 bangumi-data 有精准国内首播换算则以 CST weekday 为主，否则以官方日历 weekday 为准
-                    val weekday = dataItem?.let { TimeUtils.getCstWeekday(it.begin) } ?: officialWeekday
+                    // 以官方每日放送日历分类的 weekday 为准，确保周一至周日与官网完全一致
+                    val weekday = officialWeekday
                     val timeCst = dataItem?.let { TimeUtils.formatToCstTime(it.begin) } ?: ""
                     val timeJst = dataItem?.let { TimeUtils.formatToJstTime(it.begin) } ?: ""
                     val beginUtc = dataItem?.begin ?: ""
