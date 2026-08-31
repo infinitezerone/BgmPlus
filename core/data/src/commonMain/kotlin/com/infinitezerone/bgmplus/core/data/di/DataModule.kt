@@ -27,6 +27,7 @@ val dataModule =
     module {
         single<ScheduleRepository> {
             ScheduleRepositoryImpl(
+                apiService = get<BangumiApiService>(),
                 dataService = get<BangumiDataService>(),
                 scheduleDao = get<AirScheduleDao>(),
             )
