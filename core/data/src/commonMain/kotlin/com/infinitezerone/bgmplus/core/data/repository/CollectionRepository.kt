@@ -176,19 +176,41 @@ class CollectionRepositoryImpl(
         subjectId: Long,
         episodeId: Long,
         isWatched: Boolean,
-    ): AppResult<Unit> =
-        try {
+    ): AppResult<Unit> {
+        val activeUid = userPreferences.userPreferences.first().activeUserId
+        if (activeUid == 0L) return AppResult.Error(IllegalStateException("请先在「我的」页面登录 Bangumi 账号"))
+        return try {
             apiService.updateEpisodeStatus(
                 subjectId = subjectId,
                 episodeId = episodeId,
                 type = if (isWatched) 2 else 0,
             )
+            // 远端打卡成功后，重新拉取最新收藏状态更新本地 Room 缓存
+            val collection = apiService.getCollection(subjectId)
+            if (collection != null) {
+                userCollectionDao.insertCollection(collection.asEntity(activeUid))
+            } else if (isWatched) {
+                userCollectionDao.insertCollection(
+                    UserCollectionEntity(
+                        userId = activeUid,
+                        subjectId = subjectId,
+                        subjectType = 2,
+                        rate = 0,
+                        type = CollectionType.DOING.value,
+                        comment = "",
+                        epStatus = 1,
+                        volStatus = 0,
+                        updatedAt = "",
+                    ),
+                )
+            }
             AppResult.Success(Unit)
         } catch (e: BgmNetworkException) {
             AppResult.Error(e, "更新章节状态失败：${e.message}")
         } catch (e: Exception) {
             AppResult.Error(e, "更新章节状态异常：${e.message}")
         }
+    }
 
     override suspend fun clearUserData(userId: Long) {
         userCollectionDao.clearByUserId(userId)

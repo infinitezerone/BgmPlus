@@ -118,20 +118,55 @@ class SubjectDetailViewModel(
         }
     }
 
-    /** 单集观看状态打卡 */
+    /** 单集观看状态打卡（支持即时乐观更新） */
     fun toggleEpisodeWatched(
         episodeId: Long,
         isWatched: Boolean,
+        epNumber: Int = 1,
     ) {
+        val previousCollection = _uiState.value.collection
+        // 乐观更新 UI 状态中的 collection.epStatus
+        if (isWatched) {
+            val newEpStatus = maxOf(previousCollection?.epStatus ?: 0, epNumber)
+            _uiState.update { state ->
+                val updatedCollection =
+                    state.collection?.copy(
+                        epStatus = newEpStatus,
+                        type = if (state.collection.type == 0) CollectionType.DOING.value else state.collection.type,
+                    ) ?: UserCollection(
+                        userId = 0L,
+                        subjectId = subjectId,
+                        subjectType = 2,
+                        rate = 0,
+                        type = CollectionType.DOING.value,
+                        comment = "",
+                        epStatus = newEpStatus,
+                        volStatus = 0,
+                        updatedAt = "",
+                    )
+                state.copy(collection = updatedCollection, error = null)
+            }
+        } else {
+            val newEpStatus = maxOf(0, epNumber - 1)
+            _uiState.update { state ->
+                state.copy(
+                    collection = state.collection?.copy(epStatus = newEpStatus),
+                    error = null,
+                )
+            }
+        }
+
         viewModelScope.launch {
-            collectionRepository
-                ?.updateEpisodeStatus(
+            val result =
+                collectionRepository?.updateEpisodeStatus(
                     subjectId = subjectId,
                     episodeId = episodeId,
                     isWatched = isWatched,
-                )?.onError { _, message ->
-                    _uiState.update { it.copy(error = message) }
-                }
+                )
+            result?.onError { _, message ->
+                // 回滚
+                _uiState.update { it.copy(collection = previousCollection, error = message) }
+            }
         }
     }
 }

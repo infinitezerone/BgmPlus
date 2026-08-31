@@ -301,19 +301,21 @@ fun SubjectDetailScreen(
                                 EpisodeGrid(
                                     episodes = uiState.episodes,
                                     watchedCount = uiState.collection?.epStatus ?: 0,
-                                    onToggleWatched = { epId, isWatched ->
-                                        viewModel.toggleEpisodeWatched(epId, isWatched)
+                                    onToggleWatched = { episode, isWatched ->
+                                        val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
+                                        viewModel.toggleEpisodeWatched(episode.id, isWatched, epNumber)
                                     },
                                 )
                             }
                         } else {
                             items(items = uiState.episodes, key = { it.id }) { episode ->
                                 val isWatched = isEpisodeWatched(episode, uiState.collection?.epStatus ?: 0)
+                                val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
                                 EpisodeListItem(
                                     episode = episode,
                                     isWatched = isWatched,
                                     onToggleWatched = {
-                                        viewModel.toggleEpisodeWatched(episode.id, !isWatched)
+                                        viewModel.toggleEpisodeWatched(episode.id, !isWatched, epNumber)
                                     },
                                 )
                             }
@@ -1228,7 +1230,7 @@ private fun EpisodeListItem(
 private fun EpisodeGrid(
     episodes: List<Episode>,
     watchedCount: Int,
-    onToggleWatched: (episodeId: Long, isWatched: Boolean) -> Unit,
+    onToggleWatched: (episode: Episode, isWatched: Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -1254,7 +1256,7 @@ private fun EpisodeGrid(
                                     } else {
                                         MaterialTheme.colorScheme.surfaceContainerLow
                                     },
-                                ).clickable { onToggleWatched(episode.id, !isWatched) },
+                                ).clickable { onToggleWatched(episode, !isWatched) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(
