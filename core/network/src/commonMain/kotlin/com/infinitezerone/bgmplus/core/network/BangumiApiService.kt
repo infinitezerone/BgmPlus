@@ -1,10 +1,12 @@
 package com.infinitezerone.bgmplus.core.network
 
+import com.infinitezerone.bgmplus.core.model.SearchSubjectsRequest
 import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.core.model.UserCollection
 import com.infinitezerone.bgmplus.core.model.UserProfile
 import com.infinitezerone.bgmplus.core.network.model.CalendarDayResponse
 import com.infinitezerone.bgmplus.core.network.model.EpisodePageResponse
+import com.infinitezerone.bgmplus.core.network.model.PageResponse
 import com.infinitezerone.bgmplus.core.network.model.SearchSubjectResponse
 import com.infinitezerone.bgmplus.core.network.model.UserCollectionPageResponse
 import io.ktor.client.HttpClient
@@ -37,6 +39,12 @@ interface BangumiApiService {
         limit: Int = 30,
         offset: Int = 0,
     ): SearchSubjectResponse
+
+    suspend fun searchSubjectsAdvanced(
+        request: SearchSubjectsRequest,
+        limit: Int = 30,
+        offset: Int = 0,
+    ): PageResponse<Subject>
 
     suspend fun getUserCollections(
         username: String,
@@ -106,6 +114,19 @@ class BangumiApiServiceImpl(
                 parameter("start", offset)
             }.body()
     }
+
+    override suspend fun searchSubjectsAdvanced(
+        request: SearchSubjectsRequest,
+        limit: Int,
+        offset: Int,
+    ): PageResponse<Subject> =
+        client
+            .post("$baseUrl/v0/search/subjects") {
+                parameter("limit", limit)
+                parameter("offset", offset)
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }.body()
 
     override suspend fun getUserCollections(
         username: String,

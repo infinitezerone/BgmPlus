@@ -29,6 +29,7 @@ data class PageResponse<T>(
 
 typealias EpisodePageResponse = PageResponse<Episode>
 typealias UserCollectionPageResponse = PageResponse<UserCollection>
+typealias SubjectPageResponse = PageResponse<Subject>
 
 @Serializable
 data class SearchSubjectResponse(
