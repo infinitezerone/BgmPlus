@@ -3,6 +3,8 @@ package com.infinitezerone.bgmplus.feature.user.navigation
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.infinitezerone.bgmplus.core.model.CollectionType
+import com.infinitezerone.bgmplus.core.navigation.UserCollectionsRoute
+import com.infinitezerone.bgmplus.core.navigation.UserRoute
 import com.infinitezerone.bgmplus.feature.user.UserCollectionsScreen
 import com.infinitezerone.bgmplus.feature.user.UserScreen
 

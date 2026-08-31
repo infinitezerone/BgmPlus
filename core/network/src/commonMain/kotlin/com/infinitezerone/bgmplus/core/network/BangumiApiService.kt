@@ -55,6 +55,11 @@ interface BangumiApiService {
         offset: Int = 0,
     ): PageResponse<Subject>
 
+    /**
+     * 获取指定用户的条目收藏列表。
+     *
+     * 注意：Bangumi OpenAPI v0 规范规定此 GET 端点必须传入显式用户名或数字用户 ID（[username]），传入 "-" 会返回 404 Not Found。
+     */
     suspend fun getUserCollections(
         username: String,
         subjectType: Int = 2,
@@ -65,11 +70,21 @@ interface BangumiApiService {
 
     suspend fun getMe(): UserProfile
 
+    /**
+     * 获取指定用户对特定条目的收藏状态。
+     *
+     * 若未收藏或不存在则返回 null（映射自 404）。
+     */
     suspend fun getCollection(
         username: String,
         subjectId: Long,
     ): UserCollection?
 
+    /**
+     * 修改当前登录用户的条目收藏状态（POST /v0/users/-/collections/{subject_id}）。
+     *
+     * 注：[epStatus] 仅用于书籍类条目进度，动画进度需通过 [updateEpisodeStatus] 单集打卡驱动。
+     */
     suspend fun updateCollection(
         subjectId: Long,
         type: Int,
@@ -79,6 +94,11 @@ interface BangumiApiService {
         epStatus: Int? = null,
     )
 
+    /**
+     * 修改当前登录用户对特定章节的打卡状态（PATCH /v0/users/-/collections/{subject_id}/episodes）。
+     *
+     * @param type 0=未看/撤销, 1=想看, 2=看过, 3=抛弃
+     */
     suspend fun updateEpisodeStatus(
         subjectId: Long,
         episodeId: Long,
