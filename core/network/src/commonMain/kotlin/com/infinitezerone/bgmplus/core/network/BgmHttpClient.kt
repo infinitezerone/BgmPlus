@@ -71,6 +71,7 @@ object BgmHttpClient {
             if (tokenRefresher != null) {
                 install(Auth) {
                     bearer {
+                        // 主动在所有请求携带 Bearer Token，避免因等待 401 挑战被 HttpResponseValidator 提前拦截
                         sendWithoutRequest { true }
                         loadTokens {
                             tokenProvider.getAccessToken()?.let { accessToken ->

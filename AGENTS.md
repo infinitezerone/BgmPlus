@@ -58,8 +58,6 @@ BgmPlus/
 - Every `BgmHttpClient` request carries `User-Agent: BgmPlus/<versionName> (android) (https://github.com/infinitezerone/BgmPlus)` via `DefaultRequest` — never strip or override it; keep the version string in sync with the app's `versionName`.
 - Reuse `BgmHttpClient.jsonConfig` (`ignoreUnknownKeys`, `isLenient`, `coerceInputValues`, ...) instead of hand-rolling `Json` instances.
 - Errors surface as typed `BgmNetworkException` subclasses (`Unauthorized`, `Forbidden`, `NotFound`, `RateLimited`, `ServerError`, `Unknown`), mapped from HTTP status codes.
-- The Ktor Auth plugin is configured with `sendWithoutRequest { true }` to proactively attach the Bearer token to business requests.
-- Bangumi API convention: GET queries for user collections require explicit `{username}` / `{user_id}` (passing `-` yields 404), while mutating endpoints (POST/PATCH/PUT) use `/users/-/collections/...`.
 - Business API calls go direct to `api.bgm.tv`; only token exchange/refresh goes through the Cloudflare Worker proxy. The Ktor auth plugin auto-refreshes on 401 and clears credentials on unrecoverable refresh failures (auto-logout).
 - OAuth code redemption is guarded by a Worker-enforced PKCE equivalent (bgm.tv lacks PKCE): `BgmPkce` generates a local `verifier` whose `sha256` fingerprint rides as the OAuth `state`; the exchange must carry `code + state + verifier` or the Worker rejects with `verifier_mismatch`. Never bypass or weaken this check.
 
