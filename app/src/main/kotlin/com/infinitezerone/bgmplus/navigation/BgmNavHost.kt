@@ -9,6 +9,7 @@ import com.infinitezerone.bgmplus.core.navigation.ExploreRoute
 import com.infinitezerone.bgmplus.core.navigation.RakuenRoute
 import com.infinitezerone.bgmplus.core.navigation.SearchRoute
 import com.infinitezerone.bgmplus.core.navigation.SubjectDetailRoute
+import com.infinitezerone.bgmplus.core.navigation.UserCollectionsRoute
 import com.infinitezerone.bgmplus.feature.schedule.navigation.scheduleEntry
 import com.infinitezerone.bgmplus.feature.search.navigation.searchEntry
 import com.infinitezerone.bgmplus.feature.subject.navigation.subjectEntry
@@ -34,7 +35,15 @@ fun BgmNavHost(
                         },
                     )
 
-                    userEntry()
+                    userEntry(
+                        onSubjectClick = { subjectId ->
+                            navState.navigateTo(SubjectDetailRoute(subjectId))
+                        },
+                        onCollectionClick = { type ->
+                            navState.navigateTo(UserCollectionsRoute(type.value))
+                        },
+                        onBackClick = { navState.goBack() },
+                    )
 
                     subjectEntry(onBackClick = { navState.goBack() })
 

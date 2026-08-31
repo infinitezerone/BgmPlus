@@ -26,3 +26,8 @@ data object SearchRoute : NavKey
 data class SubjectDetailRoute(
     val subjectId: Long,
 ) : NavKey
+
+@Serializable
+data class UserCollectionsRoute(
+    val initialType: Int = 3,
+) : NavKey

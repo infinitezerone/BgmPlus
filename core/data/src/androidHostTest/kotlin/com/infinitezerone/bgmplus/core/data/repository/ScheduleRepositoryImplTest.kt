@@ -86,6 +86,7 @@ class ScheduleRepositoryImplTest {
             rate: Int?,
             comment: String?,
             private: Boolean,
+            epStatus: Int?,
         ) = error("Not implemented")
 
         override suspend fun updateEpisodeStatus(

@@ -110,4 +110,5 @@ val sampleUserCollection =
         epStatus = 12,
         volStatus = 0,
         updatedAt = "2026-08-31T09:00:00Z",
+        subject = sampleSubject,
     )

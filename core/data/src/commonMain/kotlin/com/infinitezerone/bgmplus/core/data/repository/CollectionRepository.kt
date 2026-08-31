@@ -24,6 +24,15 @@ interface CollectionRepository : UserDataClearable {
     /** 观察指定分类（想看/在看/看过等）的收藏列表 */
     fun getCollectionsByTypeStream(type: CollectionType): Flow<List<UserCollection>>
 
+    /** 从远端拉取指定用户的收藏列表 */
+    suspend fun fetchUserCollections(
+        username: String,
+        subjectType: Int = 2,
+        type: CollectionType? = null,
+        limit: Int = 30,
+        offset: Int = 0,
+    ): AppResult<List<UserCollection>>
+
     /** 从远端拉取指定条目的收藏详情并更新本地 Room 缓存 */
     suspend fun fetchCollection(subjectId: Long): AppResult<UserCollection?>
 
@@ -34,6 +43,7 @@ interface CollectionRepository : UserDataClearable {
         rate: Int? = null,
         comment: String? = null,
         private: Boolean = false,
+        epStatus: Int? = null,
     ): AppResult<Unit>
 
     /** 更新单集观看进度（看过了 / 撤销） */
@@ -77,6 +87,29 @@ class CollectionRepositoryImpl(
             }
         }
 
+    override suspend fun fetchUserCollections(
+        username: String,
+        subjectType: Int,
+        type: CollectionType?,
+        limit: Int,
+        offset: Int,
+    ): AppResult<List<UserCollection>> =
+        try {
+            val response =
+                apiService.getUserCollections(
+                    username = username,
+                    subjectType = subjectType,
+                    type = type?.value,
+                    limit = limit,
+                    offset = offset,
+                )
+            AppResult.Success(response.data)
+        } catch (e: BgmNetworkException) {
+            AppResult.Error(e, "获取用户收藏失败：${e.message}")
+        } catch (e: Exception) {
+            AppResult.Error(e, "获取用户收藏异常：${e.message}")
+        }
+
     override suspend fun fetchCollection(subjectId: Long): AppResult<UserCollection?> {
         val activeUid = userPreferences.userPreferences.first().activeUserId
         if (activeUid == 0L) return AppResult.Success(null)
@@ -99,6 +132,7 @@ class CollectionRepositoryImpl(
         rate: Int?,
         comment: String?,
         private: Boolean,
+        epStatus: Int?,
     ): AppResult<Unit> {
         val activeUid = userPreferences.userPreferences.first().activeUserId
         if (activeUid == 0L) return AppResult.Error(IllegalStateException("未登录账号，无法更新收藏"))
@@ -109,6 +143,7 @@ class CollectionRepositoryImpl(
                 rate = rate,
                 comment = comment,
                 private = private,
+                epStatus = epStatus,
             )
             // 远端更新成功后回拉最新状态或直接写入本地 Room
             val collection = apiService.getCollection(subjectId)
@@ -123,7 +158,7 @@ class CollectionRepositoryImpl(
                         rate = rate ?: 0,
                         type = type.value,
                         comment = comment.orEmpty(),
-                        epStatus = 0,
+                        epStatus = epStatus ?: 0,
                         volStatus = 0,
                         updatedAt = "",
                     ),

@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.map
 class FakeCollectionRepository : CollectionRepository {
     private val collectionsState = MutableStateFlow<Map<Long, UserCollection>>(emptyMap())
 
+    var fetchUserCollectionsResult: AppResult<List<UserCollection>>? = null
+    var fetchUserCollectionsCallCount: Int = 0
+        private set
     var updateCollectionCallCount: Int = 0
         private set
     var updateEpisodeCallCount: Int = 0
@@ -27,6 +30,23 @@ class FakeCollectionRepository : CollectionRepository {
     override fun getCollectionsByTypeStream(type: CollectionType): Flow<List<UserCollection>> =
         collectionsState.map { it.values.filter { col -> col.type == type.value } }
 
+    override suspend fun fetchUserCollections(
+        username: String,
+        subjectType: Int,
+        type: CollectionType?,
+        limit: Int,
+        offset: Int,
+    ): AppResult<List<UserCollection>> {
+        fetchUserCollectionsCallCount++
+        fetchUserCollectionsResult?.let { return it }
+        val filtered =
+            collectionsState.value.values.filter { col ->
+                (type == null || col.type == type.value) &&
+                    (subjectType == 0 || col.subjectType == subjectType)
+            }
+        return AppResult.Success(filtered)
+    }
+
     override suspend fun fetchCollection(subjectId: Long): AppResult<UserCollection?> = AppResult.Success(collectionsState.value[subjectId])
 
     override suspend fun updateCollectionStatus(
@@ -35,17 +55,23 @@ class FakeCollectionRepository : CollectionRepository {
         rate: Int?,
         comment: String?,
         private: Boolean,
+        epStatus: Int?,
     ): AppResult<Unit> {
         updateCollectionCallCount++
         val current = collectionsState.value[subjectId]
         val updated =
-            current?.copy(type = type.value, rate = rate ?: current.rate, comment = comment ?: current.comment)
-                ?: UserCollection(
-                    subjectId = subjectId,
-                    type = type.value,
-                    rate = rate ?: 0,
-                    comment = comment.orEmpty(),
-                )
+            current?.copy(
+                type = type.value,
+                rate = rate ?: current.rate,
+                comment = comment ?: current.comment,
+                epStatus = epStatus ?: current.epStatus,
+            ) ?: UserCollection(
+                subjectId = subjectId,
+                type = type.value,
+                rate = rate ?: 0,
+                comment = comment.orEmpty(),
+                epStatus = epStatus ?: 0,
+            )
         collectionsState.value = collectionsState.value + (subjectId to updated)
         return AppResult.Success(Unit)
     }
