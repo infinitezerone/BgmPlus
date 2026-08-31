@@ -62,7 +62,7 @@ object BgmHttpClient {
             }
             install(Logging) {
                 logger = Logger.DEFAULT
-                level = if (enableLogging) LogLevel.INFO else LogLevel.NONE
+                level = if (enableLogging) LogLevel.ALL else LogLevel.NONE
             }
             install(DefaultRequest) {
                 header(HttpHeaders.UserAgent, userAgent)
@@ -71,6 +71,7 @@ object BgmHttpClient {
             if (tokenRefresher != null) {
                 install(Auth) {
                     bearer {
+                        sendWithoutRequest { true }
                         loadTokens {
                             tokenProvider.getAccessToken()?.let { accessToken ->
                                 BearerTokens(accessToken, tokenProvider.getRefreshToken().orEmpty())

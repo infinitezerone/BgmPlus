@@ -80,6 +80,7 @@ class FakeCollectionRepository : CollectionRepository {
         subjectId: Long,
         episodeId: Long,
         isWatched: Boolean,
+        epNumber: Int,
     ): AppResult<Unit> {
         updateEpisodeCallCount++
         return AppResult.Success(Unit)

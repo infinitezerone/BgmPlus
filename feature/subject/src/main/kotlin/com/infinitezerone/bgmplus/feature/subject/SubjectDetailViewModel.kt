@@ -89,6 +89,7 @@ class SubjectDetailViewModel(
             _uiState.update { current ->
                 current.copy(
                     isLoading = false,
+                    subject = (subjectResult as? AppResult.Success)?.data ?: current.subject,
                     characters = (charactersResult as? AppResult.Success)?.data ?: current.characters,
                     persons = (personsResult as? AppResult.Success)?.data ?: current.persons,
                     relations = (relationsResult as? AppResult.Success)?.data ?: current.relations,
@@ -126,34 +127,24 @@ class SubjectDetailViewModel(
     ) {
         val previousCollection = _uiState.value.collection
         // 乐观更新 UI 状态中的 collection.epStatus
-        if (isWatched) {
-            val newEpStatus = maxOf(previousCollection?.epStatus ?: 0, epNumber)
-            _uiState.update { state ->
-                val updatedCollection =
-                    state.collection?.copy(
-                        epStatus = newEpStatus,
-                        type = if (state.collection.type == 0) CollectionType.DOING.value else state.collection.type,
-                    ) ?: UserCollection(
-                        userId = 0L,
-                        subjectId = subjectId,
-                        subjectType = 2,
-                        rate = 0,
-                        type = CollectionType.DOING.value,
-                        comment = "",
-                        epStatus = newEpStatus,
-                        volStatus = 0,
-                        updatedAt = "",
-                    )
-                state.copy(collection = updatedCollection, error = null)
-            }
-        } else {
-            val newEpStatus = maxOf(0, epNumber - 1)
-            _uiState.update { state ->
-                state.copy(
-                    collection = state.collection?.copy(epStatus = newEpStatus),
-                    error = null,
+        val newEpStatus = if (isWatched) maxOf(previousCollection?.epStatus ?: 0, epNumber) else maxOf(0, epNumber - 1)
+        _uiState.update { state ->
+            val updatedCollection =
+                state.collection?.copy(
+                    epStatus = newEpStatus,
+                    type = if (state.collection.type == 0) CollectionType.DOING.value else state.collection.type,
+                ) ?: UserCollection(
+                    userId = 0L,
+                    subjectId = subjectId,
+                    subjectType = 2,
+                    rate = 0,
+                    type = CollectionType.DOING.value,
+                    comment = "",
+                    epStatus = newEpStatus,
+                    volStatus = 0,
+                    updatedAt = "",
                 )
-            }
+            state.copy(collection = updatedCollection, error = null)
         }
 
         viewModelScope.launch {
@@ -162,6 +153,7 @@ class SubjectDetailViewModel(
                     subjectId = subjectId,
                     episodeId = episodeId,
                     isWatched = isWatched,
+                    epNumber = epNumber,
                 )
             result?.onError { _, message ->
                 // 回滚

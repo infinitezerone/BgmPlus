@@ -12,6 +12,7 @@ import com.infinitezerone.bgmplus.core.common.onSuccess
 import com.infinitezerone.bgmplus.core.data.repository.AuthRepository
 import com.infinitezerone.bgmplus.core.designsystem.theme.BgmPlusTheme
 import com.infinitezerone.bgmplus.ui.BgmApp
+import io.ktor.client.request.get
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 

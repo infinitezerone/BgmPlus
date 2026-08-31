@@ -94,8 +94,10 @@ class ScheduleRepositoryImplTest {
 
         override suspend fun getMe(): com.infinitezerone.bgmplus.core.model.UserProfile = error("Not implemented")
 
-        override suspend fun getCollection(subjectId: Long): com.infinitezerone.bgmplus.core.model.UserCollection? =
-            error("Not implemented")
+        override suspend fun getCollection(
+            username: String,
+            subjectId: Long,
+        ): com.infinitezerone.bgmplus.core.model.UserCollection? = error("Not implemented")
 
         override suspend fun updateCollection(
             subjectId: Long,

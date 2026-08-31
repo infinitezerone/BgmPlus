@@ -65,7 +65,10 @@ interface BangumiApiService {
 
     suspend fun getMe(): UserProfile
 
-    suspend fun getCollection(subjectId: Long): UserCollection?
+    suspend fun getCollection(
+        username: String,
+        subjectId: Long,
+    ): UserCollection?
 
     suspend fun updateCollection(
         subjectId: Long,
@@ -160,9 +163,12 @@ class BangumiApiServiceImpl(
 
     override suspend fun getMe(): UserProfile = client.get("$baseUrl/v0/me").body()
 
-    override suspend fun getCollection(subjectId: Long): UserCollection? =
+    override suspend fun getCollection(
+        username: String,
+        subjectId: Long,
+    ): UserCollection? =
         try {
-            client.get("$baseUrl/v0/users/-/collections/$subjectId").body()
+            client.get("$baseUrl/v0/users/$username/collections/$subjectId").body()
         } catch (e: BgmNetworkException.NotFound) {
             null
         }
