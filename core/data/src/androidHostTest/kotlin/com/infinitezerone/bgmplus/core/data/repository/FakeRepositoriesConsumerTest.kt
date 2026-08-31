@@ -1,11 +1,17 @@
 package com.infinitezerone.bgmplus.core.data.repository
 
+import com.infinitezerone.bgmplus.core.common.AppResult
+import com.infinitezerone.bgmplus.core.model.CollectionType
+import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.core.testing.data.sampleAirScheduleList
 import com.infinitezerone.bgmplus.core.testing.data.sampleEpisodeList
 import com.infinitezerone.bgmplus.core.testing.data.sampleSubject
+import com.infinitezerone.bgmplus.core.testing.data.sampleUserCollection
 import com.infinitezerone.bgmplus.core.testing.data.sampleUserProfile
 import com.infinitezerone.bgmplus.core.testing.repository.FakeAuthRepository
+import com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeScheduleRepository
+import com.infinitezerone.bgmplus.core.testing.repository.FakeSearchRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeSubjectRepository
 import com.infinitezerone.bgmplus.core.testing.util.MainDispatcherRule
 import com.infinitezerone.bgmplus.core.testing.util.testBgmDispatchers
@@ -15,6 +21,7 @@ import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -43,6 +50,11 @@ class FakeRepositoriesConsumerTest {
             authRepo.logout()
             assertFalse(authRepo.isLoggedIn.first())
             assertEquals(1, authRepo.logoutCallCount)
+
+            authRepo.setLoggedIn(true)
+            authRepo.logoutAll()
+            assertFalse(authRepo.isLoggedIn.first())
+            assertEquals(1, authRepo.logoutAllCallCount)
         }
 
     @Test
@@ -70,6 +82,37 @@ class FakeRepositoriesConsumerTest {
             val episodes = subjectRepo.getEpisodesStream(sampleSubject.id).first()
             assertEquals(2, episodes.size)
             assertEquals("冒険の終わり", episodes.first().name)
+        }
+
+    @Test
+    fun verifyFakeCollectionRepositoryInConsumer() =
+        runTest {
+            val collectionRepo = FakeCollectionRepository()
+            collectionRepo.sendCollection(sampleUserCollection)
+
+            val collection = collectionRepo.getCollectionStream(sampleUserCollection.subjectId).first()
+            assertNotNull(collection)
+            assertEquals(3, collection.type)
+            assertEquals(9, collection.rate)
+
+            collectionRepo.updateCollectionStatus(sampleUserCollection.subjectId, CollectionType.COLLECT, rate = 10)
+            val updated = collectionRepo.getCollectionStream(sampleUserCollection.subjectId).first()
+            assertNotNull(updated)
+            assertEquals(2, updated.type)
+            assertEquals(10, updated.rate)
+            assertEquals(1, collectionRepo.updateCollectionCallCount)
+        }
+
+    @Test
+    fun verifyFakeSearchRepositoryInConsumer() =
+        runTest {
+            val searchRepo = FakeSearchRepository()
+            searchRepo.searchResult = AppResult.Success(listOf(sampleSubject))
+
+            val result = searchRepo.searchSubjects("芙莉莲")
+            assertIs<AppResult.Success<List<Subject>>>(result)
+            assertEquals(1, result.data.size)
+            assertEquals("葬送のフリーレン", result.data.first().name)
         }
 
     @Test

@@ -95,4 +95,73 @@ class SubjectDetailViewModelTest {
             assertEquals("离线", state.error)
             assertFalse(state.isLoading)
         }
+
+    @Test
+    fun collectionStream_mergesIntoUiState() =
+        runTest {
+            val subjectRepo =
+                FakeSubjectRepository().apply {
+                    sendSubject(sampleSubject)
+                    sendEpisodes(sampleSubject.id, sampleEpisodeList)
+                }
+            val collectionRepo =
+                com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionRepository().apply {
+                    sendCollection(com.infinitezerone.bgmplus.core.testing.data.sampleUserCollection)
+                }
+
+            val viewModel =
+                SubjectDetailViewModel(
+                    subjectRepository = subjectRepo,
+                    subjectId = sampleSubject.id,
+                    collectionRepository = collectionRepo,
+                )
+
+            val state = viewModel.uiState.value
+            assertEquals(com.infinitezerone.bgmplus.core.testing.data.sampleUserCollection, state.collection)
+            assertEquals(3, state.collection?.type)
+        }
+
+    @Test
+    fun updateCollectionStatus_callsRepository() =
+        runTest {
+            val subjectRepo = FakeSubjectRepository()
+            val collectionRepo =
+                com.infinitezerone.bgmplus.core.testing.repository
+                    .FakeCollectionRepository()
+
+            val viewModel =
+                SubjectDetailViewModel(
+                    subjectRepository = subjectRepo,
+                    subjectId = sampleSubject.id,
+                    collectionRepository = collectionRepo,
+                )
+
+            viewModel.updateCollectionStatus(
+                type = com.infinitezerone.bgmplus.core.model.CollectionType.COLLECT,
+                rate = 9,
+                comment = "好看！",
+            )
+
+            assertEquals(1, collectionRepo.updateCollectionCallCount)
+        }
+
+    @Test
+    fun toggleEpisodeWatched_callsRepository() =
+        runTest {
+            val subjectRepo = FakeSubjectRepository()
+            val collectionRepo =
+                com.infinitezerone.bgmplus.core.testing.repository
+                    .FakeCollectionRepository()
+
+            val viewModel =
+                SubjectDetailViewModel(
+                    subjectRepository = subjectRepo,
+                    subjectId = sampleSubject.id,
+                    collectionRepository = collectionRepo,
+                )
+
+            viewModel.toggleEpisodeWatched(2001L, isWatched = true)
+
+            assertEquals(1, collectionRepo.updateEpisodeCallCount)
+        }
 }

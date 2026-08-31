@@ -10,28 +10,42 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class UserPreferences(
-    val userId: Long = 0L,
-    val username: String = "",
-    val nickname: String = "",
-    val avatarUrl: String = "",
-    val sign: String = "",
+    val activeUserId: Long = 0L,
+    val savedProfiles: Map<Long, UserProfile> = emptyMap(),
     val isLoggedIn: Boolean = false,
     /** 进行中登录的 PKCE 等价 verifier（其 sha256 指纹作为 OAuth state，见 BgmPkce） */
     val pendingOAuthVerifier: String = "",
     val isDarkMode: Boolean = false,
     val notifyBeforeAirMinutes: Int = 15,
+    // 兼容旧字段
+    val userId: Long = 0L,
+    val username: String = "",
+    val nickname: String = "",
+    val avatarUrl: String = "",
+    val sign: String = "",
 ) {
+    val activeProfile: UserProfile?
+        get() {
+            if (!isLoggedIn) return null
+            val uid = if (activeUserId != 0L) activeUserId else userId
+            if (uid == 0L) return null
+            return savedProfiles[uid] ?: UserProfile(
+                id = uid,
+                username = username,
+                nickname = nickname,
+                avatar = if (avatarUrl.isNotBlank()) UserAvatar(large = avatarUrl) else null,
+                sign = sign,
+            )
+        }
+
     val userProfile: UserProfile?
+        get() = activeProfile
+
+    val allProfiles: List<UserProfile>
         get() =
-            if (isLoggedIn) {
-                UserProfile(
-                    id = userId,
-                    username = username,
-                    nickname = nickname,
-                    avatar = if (avatarUrl.isNotBlank()) UserAvatar(large = avatarUrl) else null,
-                    sign = sign,
-                )
+            if (savedProfiles.isNotEmpty()) {
+                savedProfiles.values.toList()
             } else {
-                null
+                listOfNotNull(activeProfile)
             }
 }

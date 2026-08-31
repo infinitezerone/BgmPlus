@@ -14,11 +14,22 @@ class KeystoreTokenProvider(
 
     override val hasTokens: Flow<Boolean> = authTokens.tokens.map { it != null }
 
+    override val activeUserId: Flow<Long?> = authTokens.activeUserId
+
     override suspend fun saveTokens(
+        userId: Long,
         accessToken: String,
         refreshToken: String,
     ) {
-        authTokens.saveTokens(accessToken, refreshToken)
+        authTokens.saveTokens(userId, accessToken, refreshToken)
+    }
+
+    override suspend fun setActiveUser(userId: Long) {
+        authTokens.setActiveUser(userId)
+    }
+
+    override suspend fun removeTokens(userId: Long) {
+        authTokens.removeTokens(userId)
     }
 
     override suspend fun clearTokens() {

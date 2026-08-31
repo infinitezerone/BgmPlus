@@ -47,9 +47,13 @@ data class AirScheduleEntity(
     val updatedAt: Long = 0L,
 )
 
-@Entity(tableName = "user_collections")
+@Entity(
+    tableName = "user_collections",
+    primaryKeys = ["userId", "subjectId"],
+)
 data class UserCollectionEntity(
-    @PrimaryKey val subjectId: Long,
+    val userId: Long,
+    val subjectId: Long,
     val subjectType: Int,
     val rate: Int,
     val type: Int,

@@ -48,12 +48,33 @@ interface EpisodeDao {
 
 @Dao
 interface UserCollectionDao {
-    @Query("SELECT * FROM user_collections WHERE type = :type ORDER BY updatedAt DESC")
-    fun getCollectionsByType(type: Int): Flow<List<UserCollectionEntity>>
+    @Query("SELECT * FROM user_collections WHERE userId = :userId AND type = :type ORDER BY updatedAt DESC")
+    fun getCollectionsByType(
+        userId: Long,
+        type: Int,
+    ): Flow<List<UserCollectionEntity>>
 
-    @Query("SELECT * FROM user_collections WHERE subjectId = :subjectId")
-    fun getCollectionBySubjectId(subjectId: Long): Flow<UserCollectionEntity?>
+    @Query("SELECT * FROM user_collections WHERE userId = :userId AND subjectId = :subjectId")
+    fun getCollectionBySubjectId(
+        userId: Long,
+        subjectId: Long,
+    ): Flow<UserCollectionEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCollection(collection: UserCollectionEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCollections(collections: List<UserCollectionEntity>)
+
+    @Query("DELETE FROM user_collections WHERE userId = :userId AND subjectId = :subjectId")
+    suspend fun deleteBySubjectId(
+        userId: Long,
+        subjectId: Long,
+    )
+
+    @Query("DELETE FROM user_collections WHERE userId = :userId")
+    suspend fun clearByUserId(userId: Long)
+
+    @Query("DELETE FROM user_collections")
+    suspend fun clearAll()
 }

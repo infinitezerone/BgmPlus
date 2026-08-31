@@ -8,6 +8,7 @@ import androidx.datastore.core.Storage
 import androidx.datastore.core.StorageConnection
 import androidx.datastore.core.WriteScope
 import com.infinitezerone.bgmplus.core.common.AppResult
+import com.infinitezerone.bgmplus.core.data.util.UserDataCleaner
 import com.infinitezerone.bgmplus.core.datastore.UserPreferences
 import com.infinitezerone.bgmplus.core.datastore.UserPreferencesDataSource
 import com.infinitezerone.bgmplus.core.network.BgmAuthConfig
@@ -46,27 +47,39 @@ class AuthRepositoryImplTest {
         var clearCount = 0
             private set
 
-        // 注意：hasTokens 在 AuthRepositoryImpl 构造时被 combine 捕获一次，
-        // 必须用可变状态流让后续 saveTokens/clearTokens 反映到已收集的流里
         private val hasTokensState = MutableStateFlow(false)
         override val hasTokens: Flow<Boolean> = hasTokensState
+
+        private val activeUserIdState = MutableStateFlow<Long?>(null)
+        override val activeUserId: Flow<Long?> = activeUserIdState
 
         override suspend fun getAccessToken(): String? = accessToken
 
         override suspend fun getRefreshToken(): String? = refreshToken
 
         override suspend fun saveTokens(
+            userId: Long,
             accessToken: String,
             refreshToken: String,
         ) {
             this.accessToken = accessToken
             this.refreshToken = refreshToken
+            this.activeUserIdState.value = userId
             hasTokensState.value = true
+        }
+
+        override suspend fun setActiveUser(userId: Long) {
+            this.activeUserIdState.value = userId
+        }
+
+        override suspend fun removeTokens(userId: Long) {
+            clearTokens()
         }
 
         override suspend fun clearTokens() {
             accessToken = null
             refreshToken = null
+            activeUserIdState.value = null
             hasTokensState.value = false
             clearCount++
         }
@@ -183,12 +196,15 @@ class AuthRepositoryImplTest {
             DataStoreFactory.create(
                 storage = InMemoryStorage(),
             )
+        val userPreferencesDataSource = UserPreferencesDataSource(dataStore)
+        val userDataCleaner = UserDataCleaner(listOf(userPreferencesDataSource))
         val repository =
             AuthRepositoryImpl(
                 tokenService = api.service,
                 tokenProvider = tokenProvider,
-                userPreferences = UserPreferencesDataSource(dataStore),
+                userPreferences = userPreferencesDataSource,
                 authConfig = BgmAuthConfig(),
+                userDataCleaner = userDataCleaner,
             )
 
         suspend fun prefs(): UserPreferences = dataStore.data.first()

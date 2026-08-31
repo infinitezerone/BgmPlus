@@ -6,15 +6,36 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.infinitezerone.bgmplus.core.data.repository.AuthRepository
+import com.infinitezerone.bgmplus.core.model.UserProfile
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+data class UserUiState(
+    val isLoggedIn: Boolean = false,
+    val activeProfile: UserProfile? = null,
+    val savedAccounts: List<UserProfile> = emptyList(),
+    val isLoading: Boolean = false,
+)
 
 class UserViewModel(
     private val authRepository: AuthRepository,
 ) : ViewModel() {
-    /** 登录态要求"偏好已标记"且"token 实际存在"，语义见 [AuthRepository.isLoggedIn] */
+    val uiState: StateFlow<UserUiState> =
+        combine(
+            authRepository.isLoggedIn,
+            authRepository.activeProfile,
+            authRepository.savedAccounts,
+        ) { isLoggedIn, activeProfile, savedAccounts ->
+            UserUiState(
+                isLoggedIn = isLoggedIn,
+                activeProfile = activeProfile,
+                savedAccounts = savedAccounts,
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UserUiState())
+
     val isLoggedIn: StateFlow<Boolean> =
         authRepository.isLoggedIn
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -27,7 +48,27 @@ class UserViewModel(
         }
     }
 
+    fun switchAccount(userId: Long) {
+        viewModelScope.launch {
+            authRepository.switchAccount(userId)
+        }
+    }
+
     fun logout() {
-        viewModelScope.launch { authRepository.logout() }
+        viewModelScope.launch {
+            authRepository.logout()
+        }
+    }
+
+    fun logout(userId: Long) {
+        viewModelScope.launch {
+            authRepository.logout(userId)
+        }
+    }
+
+    fun logoutAll() {
+        viewModelScope.launch {
+            authRepository.logoutAll()
+        }
     }
 }

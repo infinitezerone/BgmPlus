@@ -35,14 +35,22 @@ class BgmTokenServiceRefreshTest {
                             override suspend fun getRefreshToken(): String? = null
 
                             override suspend fun saveTokens(
+                                userId: Long,
                                 accessToken: String,
                                 refreshToken: String,
                             ) {}
+
+                            override suspend fun setActiveUser(userId: Long) {}
+
+                            override suspend fun removeTokens(userId: Long) {}
 
                             override suspend fun clearTokens() {}
 
                             override val hasTokens: kotlinx.coroutines.flow.Flow<Boolean>
                                 get() = kotlinx.coroutines.flow.flowOf(false)
+
+                            override val activeUserId: kotlinx.coroutines.flow.Flow<Long?>
+                                get() = kotlinx.coroutines.flow.flowOf(null)
                         },
                     engine =
                         MockEngine {

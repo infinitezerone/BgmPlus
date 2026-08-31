@@ -40,13 +40,23 @@ class BgmHttpClientAuthTest {
         override val hasTokens: Flow<Boolean>
             get() = flowOf(accessToken != null)
 
+        override val activeUserId: Flow<Long?>
+            get() = flowOf(1L)
+
         override suspend fun saveTokens(
+            userId: Long,
             accessToken: String,
             refreshToken: String,
         ) {
             this.accessToken = accessToken
             this.refreshToken = refreshToken
             saveCount++
+        }
+
+        override suspend fun setActiveUser(userId: Long) = Unit
+
+        override suspend fun removeTokens(userId: Long) {
+            clearTokens()
         }
 
         override suspend fun clearTokens() {

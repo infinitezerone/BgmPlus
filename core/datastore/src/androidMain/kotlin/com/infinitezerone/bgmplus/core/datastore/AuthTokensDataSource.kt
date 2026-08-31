@@ -37,42 +37,110 @@ class AuthTokensDataSource(
     private val dataStore: DataStore<String>,
     private val crypto: CryptoManager,
 ) {
-    val tokens: Flow<Pair<String, String>?> = dataStore.data.map { blob -> decode(blob) }
+    val tokens: Flow<Pair<String, String>?> =
+        dataStore.data.map { blob ->
+            val state = decodeState(blob) ?: return@map null
+            val activeTokens =
+                state.accounts[state.activeUserId]
+                    ?: state.accounts.values.firstOrNull()
+            activeTokens?.let { it.accessToken to it.refreshToken }
+        }
 
-    suspend fun getAccessToken(): String? = current()?.first
+    val activeUserId: Flow<Long?> =
+        dataStore.data.map { blob ->
+            decodeState(blob)?.activeUserId?.takeIf { it != 0L }
+        }
 
-    suspend fun getRefreshToken(): String? = current()?.second
+    suspend fun getAccessToken(): String? = currentActiveTokens()?.accessToken
+
+    suspend fun getRefreshToken(): String? = currentActiveTokens()?.refreshToken
+
+    suspend fun saveTokens(
+        userId: Long,
+        accessToken: String,
+        refreshToken: String,
+    ) {
+        val current = currentState()
+        val accountTokens = AccountTokens(accessToken = accessToken, refreshToken = refreshToken, userId = userId)
+        val updatedAccounts = current.accounts + (userId to accountTokens)
+        val newState = AuthTokensState(activeUserId = userId, accounts = updatedAccounts)
+        saveState(newState)
+    }
 
     suspend fun saveTokens(
         accessToken: String,
         refreshToken: String,
-    ) {
-        val json = Json.encodeToString(AuthTokens.serializer(), AuthTokens(accessToken, refreshToken))
-        val blob = Base64.encodeToString(crypto.encrypt(json.encodeToByteArray()), Base64.NO_WRAP)
-        dataStore.updateData { blob }
+    ) = saveTokens(0L, accessToken, refreshToken)
+
+    suspend fun setActiveUser(userId: Long) {
+        val current = currentState()
+        if (current.accounts.containsKey(userId)) {
+            saveState(current.copy(activeUserId = userId))
+        }
+    }
+
+    suspend fun removeTokens(userId: Long) {
+        val current = currentState()
+        val updatedAccounts = current.accounts - userId
+        val newActiveId =
+            if (current.activeUserId == userId) {
+                updatedAccounts.keys.firstOrNull() ?: 0L
+            } else {
+                current.activeUserId
+            }
+        if (updatedAccounts.isEmpty()) {
+            clear()
+        } else {
+            saveState(AuthTokensState(activeUserId = newActiveId, accounts = updatedAccounts))
+        }
     }
 
     suspend fun clear() {
         dataStore.updateData { "" }
     }
 
-    private suspend fun current(): Pair<String, String>? = decode(dataStore.data.first())
+    private suspend fun currentState(): AuthTokensState = decodeState(dataStore.data.first()) ?: AuthTokensState()
+
+    private suspend fun currentActiveTokens(): AccountTokens? {
+        val state = currentState()
+        return state.accounts[state.activeUserId] ?: state.accounts.values.firstOrNull()
+    }
+
+    private suspend fun saveState(state: AuthTokensState) {
+        val json = Json.encodeToString(AuthTokensState.serializer(), state)
+        val blob = Base64.encodeToString(crypto.encrypt(json.encodeToByteArray()), Base64.NO_WRAP)
+        dataStore.updateData { blob }
+    }
 
     /** 密文损坏（如跨设备恢复后无法解密）时按"未登录"处理，避免崩溃循环 */
-    private fun decode(blob: String): Pair<String, String>? =
+    private fun decodeState(blob: String): AuthTokensState? =
         if (blob.isBlank()) {
             null
         } else {
             runCatching {
                 val plain = crypto.decrypt(Base64.decode(blob, Base64.NO_WRAP)).decodeToString()
-                val tokens = Json.decodeFromString(AuthTokens.serializer(), plain)
-                tokens.accessToken to tokens.refreshToken
+                val state = Json.decodeFromString(AuthTokensState.serializer(), plain)
+                if (state.accounts.isEmpty() && state.accessToken.isNotBlank()) {
+                    val legacy = AccountTokens(state.accessToken, state.refreshToken, state.activeUserId)
+                    AuthTokensState(activeUserId = state.activeUserId, accounts = mapOf(state.activeUserId to legacy))
+                } else {
+                    state
+                }
             }.getOrNull()
         }
 
     @Serializable
-    private data class AuthTokens(
-        val accessToken: String,
-        val refreshToken: String,
+    private data class AccountTokens(
+        val accessToken: String = "",
+        val refreshToken: String = "",
+        val userId: Long = 0L,
+    )
+
+    @Serializable
+    private data class AuthTokensState(
+        val activeUserId: Long = 0L,
+        val accounts: Map<Long, AccountTokens> = emptyMap(),
+        val accessToken: String = "",
+        val refreshToken: String = "",
     )
 }

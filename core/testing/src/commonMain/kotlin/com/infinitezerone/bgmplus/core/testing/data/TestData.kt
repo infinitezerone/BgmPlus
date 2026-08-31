@@ -86,3 +86,28 @@ val sampleUserProfile =
             ),
         sign = "Stay hungry, stay foolish.",
     )
+
+val sampleUserProfileAlt =
+    UserProfile(
+        id = 999L,
+        username = "alt_user",
+        nickname = "马甲二号",
+        avatar =
+            UserAvatar(
+                large = "https://lain.bgm.tv/pic/user/l/sample_alt.jpg",
+            ),
+        sign = "Alt account for Galgame.",
+    )
+
+val sampleUserCollection =
+    com.infinitezerone.bgmplus.core.model.UserCollection(
+        userId = 42L,
+        subjectId = 1001L,
+        subjectType = 2,
+        rate = 9,
+        type = 3, // DOING (在看)
+        comment = "神作无误！",
+        epStatus = 12,
+        volStatus = 0,
+        updatedAt = "2026-08-31T09:00:00Z",
+    )

@@ -1,6 +1,8 @@
 package com.infinitezerone.bgmplus.core.network
 
 import com.infinitezerone.bgmplus.core.model.Subject
+import com.infinitezerone.bgmplus.core.model.UserCollection
+import com.infinitezerone.bgmplus.core.model.UserProfile
 import com.infinitezerone.bgmplus.core.network.model.CalendarDayResponse
 import com.infinitezerone.bgmplus.core.network.model.EpisodePageResponse
 import com.infinitezerone.bgmplus.core.network.model.SearchSubjectResponse
@@ -10,6 +12,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
+import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.URLBuilder
@@ -42,6 +45,18 @@ interface BangumiApiService {
         limit: Int = 30,
         offset: Int = 0,
     ): UserCollectionPageResponse
+
+    suspend fun getMe(): UserProfile
+
+    suspend fun getCollection(subjectId: Long): UserCollection?
+
+    suspend fun updateCollection(
+        subjectId: Long,
+        type: Int,
+        rate: Int? = null,
+        comment: String? = null,
+        private: Boolean = false,
+    )
 
     suspend fun updateEpisodeStatus(
         subjectId: Long,
@@ -105,6 +120,43 @@ class BangumiApiServiceImpl(
                 parameter("limit", limit)
                 parameter("offset", offset)
             }.body()
+
+    override suspend fun getMe(): UserProfile = client.get("$baseUrl/v0/me").body()
+
+    override suspend fun getCollection(subjectId: Long): UserCollection? =
+        try {
+            client.get("$baseUrl/v0/users/-/collections/$subjectId").body()
+        } catch (e: BgmNetworkException.NotFound) {
+            null
+        }
+
+    @Serializable
+    private data class CollectionUpdateBody(
+        val type: Int,
+        val rate: Int? = null,
+        val comment: String? = null,
+        val `private`: Boolean = false,
+    )
+
+    override suspend fun updateCollection(
+        subjectId: Long,
+        type: Int,
+        rate: Int?,
+        comment: String?,
+        private: Boolean,
+    ) {
+        client.post("$baseUrl/v0/users/-/collections/$subjectId") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                CollectionUpdateBody(
+                    type = type,
+                    rate = rate,
+                    comment = comment,
+                    private = private,
+                ),
+            )
+        }
+    }
 
     @Serializable
     private data class EpisodeStatusUpdateBody(

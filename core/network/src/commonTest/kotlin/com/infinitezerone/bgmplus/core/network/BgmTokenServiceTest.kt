@@ -27,10 +27,18 @@ class BgmTokenServiceTest {
         override val hasTokens: Flow<Boolean>
             get() = flowOf(false)
 
+        override val activeUserId: Flow<Long?>
+            get() = flowOf(null)
+
         override suspend fun saveTokens(
+            userId: Long,
             accessToken: String,
             refreshToken: String,
         ) = Unit
+
+        override suspend fun setActiveUser(userId: Long) = Unit
+
+        override suspend fun removeTokens(userId: Long) = Unit
 
         override suspend fun clearTokens() = Unit
     }

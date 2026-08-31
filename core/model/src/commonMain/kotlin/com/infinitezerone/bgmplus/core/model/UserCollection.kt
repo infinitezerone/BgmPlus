@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 data class UserCollection(
     @SerialName("subject_id") val subjectId: Long,
     @SerialName("subject_type") val subjectType: Int = 2,
+    val userId: Long = 0L,
     val rate: Int = 0,
     val type: Int = 1,
     val comment: String = "",
