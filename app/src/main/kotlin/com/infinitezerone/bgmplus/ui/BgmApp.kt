@@ -11,10 +11,10 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.infinitezerone.bgmplus.feature.schedule.navigation.ScheduleRoute
+import com.infinitezerone.bgmplus.core.navigation.ScheduleRoute
+import com.infinitezerone.bgmplus.core.navigation.TopLevelDestination
+import com.infinitezerone.bgmplus.core.navigation.rememberBgmNavState
 import com.infinitezerone.bgmplus.navigation.BgmNavHost
-import com.infinitezerone.bgmplus.navigation.TopLevelDestination
-import com.infinitezerone.bgmplus.navigation.rememberBgmNavState
 
 @Composable
 fun BgmApp(

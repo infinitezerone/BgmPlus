@@ -1,4 +1,4 @@
-package com.infinitezerone.bgmplus.navigation
+package com.infinitezerone.bgmplus.core.navigation
 
 import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.Composable

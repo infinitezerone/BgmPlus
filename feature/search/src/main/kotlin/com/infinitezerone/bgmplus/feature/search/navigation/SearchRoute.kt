@@ -1,8 +1,4 @@
 package com.infinitezerone.bgmplus.feature.search.navigation
 
-import androidx.navigation3.runtime.NavKey
-import kotlinx.serialization.Serializable
-
-/** 「搜索」页面路由 */
-@Serializable
-data object SearchRoute : NavKey
+/** 搜索页路由，统一由 :core:navigation 导出 */
+typealias SearchRoute = com.infinitezerone.bgmplus.core.navigation.SearchRoute

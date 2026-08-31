@@ -1,10 +1,4 @@
 package com.infinitezerone.bgmplus.feature.subject.navigation
 
-import androidx.navigation3.runtime.NavKey
-import kotlinx.serialization.Serializable
-
-/** 条目详情页路由；由 `:app` 的 BgmNavHost 经 subjectEntry() 聚合 */
-@Serializable
-data class SubjectDetailRoute(
-    val subjectId: Long,
-) : NavKey
+/** 条目详情页路由，统一由 :core:navigation 导出 */
+typealias SubjectDetailRoute = com.infinitezerone.bgmplus.core.navigation.SubjectDetailRoute

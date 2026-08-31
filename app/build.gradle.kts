@@ -36,6 +36,7 @@ dependencies {
     implementation(project(":core:datastore"))
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
+    implementation(project(":core:navigation"))
     implementation(project(":feature:user"))
     implementation(project(":feature:schedule"))
     implementation(project(":feature:subject"))

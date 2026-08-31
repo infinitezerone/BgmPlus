@@ -16,6 +16,7 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
             add("implementation", project(":core:common"))
             add("implementation", project(":core:data"))
             add("implementation", project(":core:designsystem"))
+            add("implementation", project(":core:navigation"))
 
             // Compose 栈：目录里 Compose 组件均为无版本条目，必须引入 BOM platform 才能解析
             add("implementation", platform(libs.findLibrary("androidx-compose-bom").get()))
