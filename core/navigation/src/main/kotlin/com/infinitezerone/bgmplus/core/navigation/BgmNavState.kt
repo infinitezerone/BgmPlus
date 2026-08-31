@@ -117,7 +117,7 @@ class BgmNavState(
      * 起始 Tab 的条目始终在列（exit through home），其余 Tab 的栈状态仍被保留，只是不参与渲染。
      */
     @Composable
-    fun toDecoratedEntries(entryProvider: (NavKey) -> NavEntry<NavKey>): SnapshotStateList<NavEntry<NavKey>> {
+    fun toEntries(entryProvider: (NavKey) -> NavEntry<NavKey>): SnapshotStateList<NavEntry<NavKey>> {
         val decoratedEntries =
             subStacks.mapValues { (_, stack) ->
                 val decorators =

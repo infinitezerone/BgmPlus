@@ -23,7 +23,7 @@ fun BgmNavHost(
 ) {
     NavDisplay(
         entries =
-            navState.toDecoratedEntries(
+            navState.toEntries(
                 entryProvider {
                     scheduleEntry(
                         onSubjectClick = { subjectId ->
