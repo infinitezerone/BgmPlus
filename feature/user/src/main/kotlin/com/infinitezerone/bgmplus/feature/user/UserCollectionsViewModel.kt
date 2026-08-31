@@ -71,11 +71,8 @@ class UserCollectionsViewModel(
     }
 
     fun setInitialType(type: CollectionType) {
-        if (!isInitialized) {
-            isInitialized = true
-            _uiState.update { it.copy(selectedType = type) }
-            loadCollections(isRefresh = false)
-        }
+        _uiState.update { it.copy(selectedType = type) }
+        loadCollections(isRefresh = false)
     }
 
     fun selectType(type: CollectionType) {
