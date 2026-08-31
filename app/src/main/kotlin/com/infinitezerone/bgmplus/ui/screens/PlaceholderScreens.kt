@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 fun ExploreScreen(
     onSubjectClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    onSearchClick: () -> Unit = {},
 ) {
     val categories = listOf("动画", "书籍", "游戏", "音乐", "三次元")
     var selectedCategory by remember { mutableIntStateOf(0) }
@@ -72,6 +73,7 @@ fun ExploreScreen(
                     .padding(horizontal = 16.dp),
         ) {
             OutlinedCard(
+                onClick = onSearchClick,
                 modifier =
                     Modifier
                         .fillMaxWidth()
