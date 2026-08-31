@@ -2,7 +2,10 @@ package com.infinitezerone.bgmplus.feature.subject
 
 import com.infinitezerone.bgmplus.core.common.AppResult
 import com.infinitezerone.bgmplus.core.model.CollectionType
+import com.infinitezerone.bgmplus.core.testing.data.sampleCharacterList
 import com.infinitezerone.bgmplus.core.testing.data.sampleEpisodeList
+import com.infinitezerone.bgmplus.core.testing.data.samplePersonList
+import com.infinitezerone.bgmplus.core.testing.data.sampleRelationList
 import com.infinitezerone.bgmplus.core.testing.data.sampleSubject
 import com.infinitezerone.bgmplus.core.testing.data.sampleUserCollection
 import com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionRepository
@@ -27,6 +30,9 @@ class SubjectDetailViewModelTest {
                 FakeSubjectRepository().apply {
                     sendSubject(sampleSubject)
                     sendEpisodes(sampleSubject.id, sampleEpisodeList)
+                    sendCharacters(sampleSubject.id, sampleCharacterList)
+                    sendPersons(sampleSubject.id, samplePersonList)
+                    sendRelations(sampleSubject.id, sampleRelationList)
                 }
 
             val viewModel = SubjectDetailViewModel(repository, sampleSubject.id)
@@ -35,14 +41,20 @@ class SubjectDetailViewModelTest {
             assertFalse(state.isLoading)
             assertEquals(sampleSubject, state.subject)
             assertEquals(sampleEpisodeList, state.episodes)
+            assertEquals(sampleCharacterList, state.characters)
+            assertEquals(samplePersonList, state.persons)
+            assertEquals(sampleRelationList, state.relations)
             assertNull(state.error)
         }
 
     @Test
-    fun subjectId_isForwardedToBothRepositoryCalls() =
+    fun subjectId_isForwardedToAllRepositoryCalls() =
         runTest {
             var requestedDetailId: Long? = null
             var requestedEpisodesId: Long? = null
+            var requestedCharactersId: Long? = null
+            var requestedPersonsId: Long? = null
+            var requestedRelationsId: Long? = null
             val repository =
                 FakeSubjectRepository().apply {
                     fetchSubjectDetailResult = { id ->
@@ -53,12 +65,27 @@ class SubjectDetailViewModelTest {
                         requestedEpisodesId = id
                         AppResult.Success(emptyList())
                     }
+                    fetchCharactersResult = { id ->
+                        requestedCharactersId = id
+                        AppResult.Success(emptyList())
+                    }
+                    fetchPersonsResult = { id ->
+                        requestedPersonsId = id
+                        AppResult.Success(emptyList())
+                    }
+                    fetchRelationsResult = { id ->
+                        requestedRelationsId = id
+                        AppResult.Success(emptyList())
+                    }
                 }
 
             SubjectDetailViewModel(repository, 7777L)
 
             assertEquals(7777L, requestedDetailId)
             assertEquals(7777L, requestedEpisodesId)
+            assertEquals(7777L, requestedCharactersId)
+            assertEquals(7777L, requestedPersonsId)
+            assertEquals(7777L, requestedRelationsId)
         }
 
     @Test
@@ -168,23 +195,50 @@ class SubjectDetailViewModelTest {
         }
 
     @Test
-    fun refresh_refetchesSubjectDetailAndEpisodes() =
+    fun refresh_refetchesSubjectDetailEpisodesCharactersPersonsRelations() =
         runTest {
-            var fetchCount = 0
+            var detailCount = 0
+            var charactersCount = 0
+            var personsCount = 0
+            var relationsCount = 0
+
             val repository =
                 FakeSubjectRepository().apply {
                     fetchSubjectDetailResult = {
-                        fetchCount++
+                        detailCount++
                         AppResult.Success(sampleSubject)
+                    }
+                    fetchCharactersResult = {
+                        charactersCount++
+                        AppResult.Success(sampleCharacterList)
+                    }
+                    fetchPersonsResult = {
+                        personsCount++
+                        AppResult.Success(samplePersonList)
+                    }
+                    fetchRelationsResult = {
+                        relationsCount++
+                        AppResult.Success(sampleRelationList)
                     }
                     sendSubject(sampleSubject)
                 }
 
             val viewModel = SubjectDetailViewModel(repository, sampleSubject.id)
-            val initialCount = fetchCount
+
+            val initialDetail = detailCount
+            val initialChars = charactersCount
+            val initialPersons = personsCount
+            val initialRelations = relationsCount
 
             viewModel.refresh()
-            assertEquals(initialCount + 1, fetchCount)
+
+            assertEquals(initialDetail + 1, detailCount)
+            assertEquals(initialChars + 1, charactersCount)
+            assertEquals(initialPersons + 1, personsCount)
+            assertEquals(initialRelations + 1, relationsCount)
+            assertEquals(sampleCharacterList, viewModel.uiState.value.characters)
+            assertEquals(samplePersonList, viewModel.uiState.value.persons)
+            assertEquals(sampleRelationList, viewModel.uiState.value.relations)
             assertFalse(viewModel.uiState.value.isLoading)
         }
 }

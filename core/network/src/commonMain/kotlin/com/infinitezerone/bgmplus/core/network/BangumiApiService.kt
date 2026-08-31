@@ -2,6 +2,9 @@ package com.infinitezerone.bgmplus.core.network
 
 import com.infinitezerone.bgmplus.core.model.SearchSubjectsRequest
 import com.infinitezerone.bgmplus.core.model.Subject
+import com.infinitezerone.bgmplus.core.model.SubjectCharacter
+import com.infinitezerone.bgmplus.core.model.SubjectPerson
+import com.infinitezerone.bgmplus.core.model.SubjectRelation
 import com.infinitezerone.bgmplus.core.model.UserCollection
 import com.infinitezerone.bgmplus.core.model.UserProfile
 import com.infinitezerone.bgmplus.core.network.model.CalendarDayResponse
@@ -26,6 +29,12 @@ interface BangumiApiService {
     suspend fun getCalendar(): List<CalendarDayResponse>
 
     suspend fun getSubject(id: Long): Subject
+
+    suspend fun getSubjectCharacters(id: Long): List<SubjectCharacter>
+
+    suspend fun getSubjectPersons(id: Long): List<SubjectPerson>
+
+    suspend fun getSubjectRelations(id: Long): List<SubjectRelation>
 
     suspend fun getEpisodes(
         subjectId: Long,
@@ -56,7 +65,10 @@ interface BangumiApiService {
 
     suspend fun getMe(): UserProfile
 
-    suspend fun getCollection(subjectId: Long): UserCollection?
+    suspend fun getCollection(
+        username: String,
+        subjectId: Long,
+    ): UserCollection?
 
     suspend fun updateCollection(
         subjectId: Long,
@@ -81,6 +93,12 @@ class BangumiApiServiceImpl(
     override suspend fun getCalendar(): List<CalendarDayResponse> = client.get("$baseUrl/calendar").body()
 
     override suspend fun getSubject(id: Long): Subject = client.get("$baseUrl/v0/subjects/$id").body()
+
+    override suspend fun getSubjectCharacters(id: Long): List<SubjectCharacter> = client.get("$baseUrl/v0/subjects/$id/characters").body()
+
+    override suspend fun getSubjectPersons(id: Long): List<SubjectPerson> = client.get("$baseUrl/v0/subjects/$id/persons").body()
+
+    override suspend fun getSubjectRelations(id: Long): List<SubjectRelation> = client.get("$baseUrl/v0/subjects/$id/subjects").body()
 
     override suspend fun getEpisodes(
         subjectId: Long,
@@ -145,9 +163,12 @@ class BangumiApiServiceImpl(
 
     override suspend fun getMe(): UserProfile = client.get("$baseUrl/v0/me").body()
 
-    override suspend fun getCollection(subjectId: Long): UserCollection? =
+    override suspend fun getCollection(
+        username: String,
+        subjectId: Long,
+    ): UserCollection? =
         try {
-            client.get("$baseUrl/v0/users/-/collections/$subjectId").body()
+            client.get("$baseUrl/v0/users/$username/collections/$subjectId").body()
         } catch (e: BgmNetworkException.NotFound) {
             null
         }

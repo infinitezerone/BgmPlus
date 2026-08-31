@@ -10,12 +10,14 @@ import com.infinitezerone.bgmplus.core.model.UserCollection
 import com.infinitezerone.bgmplus.core.network.BangumiApiService
 import com.infinitezerone.bgmplus.core.network.BgmNetworkException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 interface CollectionRepository : UserDataClearable {
     /** 观察指定条目的收藏状态（响应式绑定当前活跃账号） */
@@ -51,6 +53,7 @@ interface CollectionRepository : UserDataClearable {
         subjectId: Long,
         episodeId: Long,
         isWatched: Boolean,
+        epNumber: Int = 1,
     ): AppResult<Unit>
 }
 
@@ -114,7 +117,7 @@ class CollectionRepositoryImpl(
         val activeUid = userPreferences.userPreferences.first().activeUserId
         if (activeUid == 0L) return AppResult.Success(null)
         return try {
-            val collection = apiService.getCollection(subjectId)
+            val collection = apiService.getCollection(activeUid.toString(), subjectId)
             if (collection != null) {
                 userCollectionDao.insertCollection(collection.asEntity(activeUid))
             }
@@ -133,23 +136,20 @@ class CollectionRepositoryImpl(
         comment: String?,
         private: Boolean,
         epStatus: Int?,
-    ): AppResult<Unit> {
-        val activeUid = userPreferences.userPreferences.first().activeUserId
-        if (activeUid == 0L) return AppResult.Error(IllegalStateException("未登录账号，无法更新收藏"))
-        return try {
-            apiService.updateCollection(
-                subjectId = subjectId,
-                type = type.value,
-                rate = rate,
-                comment = comment,
-                private = private,
-                epStatus = epStatus,
-            )
-            // 远端更新成功后回拉最新状态或直接写入本地 Room
-            val collection = apiService.getCollection(subjectId)
-            if (collection != null) {
-                userCollectionDao.insertCollection(collection.asEntity(activeUid))
-            } else {
+    ): AppResult<Unit> =
+        withContext(NonCancellable) {
+            val activeUid = userPreferences.userPreferences.first().activeUserId
+            if (activeUid == 0L) return@withContext AppResult.Error(IllegalStateException("未登录账号，无法更新收藏"))
+            try {
+                apiService.updateCollection(
+                    subjectId = subjectId,
+                    type = type.value,
+                    rate = rate,
+                    comment = comment,
+                    private = private,
+                    epStatus = epStatus,
+                )
+                // 写入本地 Room 数据库
                 userCollectionDao.insertCollection(
                     UserCollectionEntity(
                         userId = activeUid,
@@ -163,31 +163,78 @@ class CollectionRepositoryImpl(
                         updatedAt = "",
                     ),
                 )
+                AppResult.Success(Unit)
+            } catch (e: BgmNetworkException) {
+                AppResult.Error(e, "更新收藏状态失败：${e.message}")
+            } catch (e: Exception) {
+                AppResult.Error(e, "更新收藏状态异常：${e.message}")
             }
-            AppResult.Success(Unit)
-        } catch (e: BgmNetworkException) {
-            AppResult.Error(e, "更新收藏状态失败：${e.message}")
-        } catch (e: Exception) {
-            AppResult.Error(e, "更新收藏状态异常：${e.message}")
         }
-    }
 
     override suspend fun updateEpisodeStatus(
         subjectId: Long,
         episodeId: Long,
         isWatched: Boolean,
+        epNumber: Int,
     ): AppResult<Unit> =
-        try {
-            apiService.updateEpisodeStatus(
-                subjectId = subjectId,
-                episodeId = episodeId,
-                type = if (isWatched) 2 else 0,
-            )
-            AppResult.Success(Unit)
-        } catch (e: BgmNetworkException) {
-            AppResult.Error(e, "更新章节状态失败：${e.message}")
-        } catch (e: Exception) {
-            AppResult.Error(e, "更新章节状态异常：${e.message}")
+        withContext(NonCancellable) {
+            val activeUid = userPreferences.userPreferences.first().activeUserId
+            if (activeUid == 0L) return@withContext AppResult.Error(IllegalStateException("请先在「我的」页面登录 Bangumi 账号"))
+            try {
+                // 1. 获取当前远端收藏状态
+                val existing =
+                    try {
+                        apiService.getCollection(activeUid.toString(), subjectId)
+                    } catch (e: Exception) {
+                        null
+                    }
+
+                val targetType = existing?.type?.takeIf { it > 0 } ?: CollectionType.DOING.value
+                val targetEpStatus =
+                    if (isWatched) {
+                        maxOf(existing?.epStatus ?: 0, epNumber)
+                    } else {
+                        maxOf(0, epNumber - 1)
+                    }
+
+                // 2. 确保条目已在用户收藏中（若未收藏则置为在看）
+                if (existing == null || existing.type == 0) {
+                    apiService.updateCollection(
+                        subjectId = subjectId,
+                        type = targetType,
+                        rate = existing?.rate?.takeIf { it > 0 },
+                        comment = existing?.comment?.ifBlank { null },
+                        private = false,
+                    )
+                }
+
+                // 3. 然后调用分集打卡接口 (type = 2 为已看过，0 为撤销/未看)
+                apiService.updateEpisodeStatus(
+                    subjectId = subjectId,
+                    episodeId = episodeId,
+                    type = if (isWatched) 2 else 0,
+                )
+
+                // 4. 远端打卡并更新收藏成功后，将最新的 UserCollectionEntity 存入本地 Room 数据库
+                userCollectionDao.insertCollection(
+                    UserCollectionEntity(
+                        userId = activeUid,
+                        subjectId = subjectId,
+                        subjectType = 2,
+                        rate = existing?.rate ?: 0,
+                        type = targetType,
+                        comment = existing?.comment.orEmpty(),
+                        epStatus = targetEpStatus,
+                        volStatus = 0,
+                        updatedAt = "",
+                    ),
+                )
+                AppResult.Success(Unit)
+            } catch (e: BgmNetworkException) {
+                AppResult.Error(e, "打卡失败：${e.message}")
+            } catch (e: Exception) {
+                AppResult.Error(e, "打卡异常：${e.message}")
+            }
         }
 
     override suspend fun clearUserData(userId: Long) {

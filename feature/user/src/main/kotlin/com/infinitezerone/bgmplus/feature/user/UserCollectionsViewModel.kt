@@ -52,8 +52,6 @@ class UserCollectionsViewModel(
     private val _uiState = MutableStateFlow(UserCollectionsUiState())
     val uiState: StateFlow<UserCollectionsUiState> = _uiState.asStateFlow()
 
-    private var isInitialized = false
-
     init {
         viewModelScope.launch {
             authRepository.isLoggedIn.collect { loggedIn ->
@@ -63,7 +61,7 @@ class UserCollectionsViewModel(
         viewModelScope.launch {
             authRepository.activeProfile.collect { profile ->
                 _uiState.update { it.copy(activeProfile = profile) }
-                if (isInitialized && profile != null) {
+                if (profile != null) {
                     loadCollections(isRefresh = false)
                 }
             }
@@ -71,11 +69,8 @@ class UserCollectionsViewModel(
     }
 
     fun setInitialType(type: CollectionType) {
-        if (!isInitialized) {
-            isInitialized = true
-            _uiState.update { it.copy(selectedType = type) }
-            loadCollections(isRefresh = false)
-        }
+        _uiState.update { it.copy(selectedType = type) }
+        loadCollections(isRefresh = false)
     }
 
     fun selectType(type: CollectionType) {
@@ -105,11 +100,7 @@ class UserCollectionsViewModel(
             }
 
             val profile = _uiState.value.activeProfile ?: authRepository.activeProfile.first()
-            val username =
-                profile?.username?.ifBlank { profile.id.toString() }
-                    ?: profile?.id?.takeIf { it > 0 }?.toString()
-
-            if (username.isNullOrBlank()) {
+            if (profile == null) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -120,6 +111,10 @@ class UserCollectionsViewModel(
                 return@launch
             }
 
+            val username =
+                profile.username
+                    .ifBlank { profile.id.toString() }
+                    .takeIf { it.isNotBlank() } ?: profile.id.toString()
             val type = _uiState.value.selectedType
             val subjectType = _uiState.value.selectedSubjectFilter.typeId
 

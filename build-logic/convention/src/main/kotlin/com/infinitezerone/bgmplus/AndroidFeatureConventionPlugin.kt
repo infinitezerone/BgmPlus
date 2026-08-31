@@ -28,6 +28,7 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
 
             add("implementation", libs.findLibrary("androidx-lifecycle-runtime-compose").get())
             add("implementation", libs.findLibrary("androidx-lifecycle-viewmodel-compose").get())
+            add("implementation", libs.findLibrary("androidx-browser").get())
             add("implementation", libs.findLibrary("androidx-navigation3-runtime").get())
             add("implementation", libs.findLibrary("koin-androidx-compose").get())
 

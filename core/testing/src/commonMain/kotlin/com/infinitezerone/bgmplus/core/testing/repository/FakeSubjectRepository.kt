@@ -4,6 +4,9 @@ import com.infinitezerone.bgmplus.core.common.AppResult
 import com.infinitezerone.bgmplus.core.data.repository.SubjectRepository
 import com.infinitezerone.bgmplus.core.model.Episode
 import com.infinitezerone.bgmplus.core.model.Subject
+import com.infinitezerone.bgmplus.core.model.SubjectCharacter
+import com.infinitezerone.bgmplus.core.model.SubjectPerson
+import com.infinitezerone.bgmplus.core.model.SubjectRelation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -11,10 +14,19 @@ import kotlinx.coroutines.flow.map
 class FakeSubjectRepository : SubjectRepository {
     private val subjectsState = MutableStateFlow<Map<Long, Subject>>(emptyMap())
     private val episodesState = MutableStateFlow<Map<Long, List<Episode>>>(emptyMap())
+    private val charactersState = MutableStateFlow<Map<Long, List<SubjectCharacter>>>(emptyMap())
+    private val personsState = MutableStateFlow<Map<Long, List<SubjectPerson>>>(emptyMap())
+    private val relationsState = MutableStateFlow<Map<Long, List<SubjectRelation>>>(emptyMap())
 
     var fetchSubjectDetailCallCount: Int = 0
         private set
     var fetchEpisodesCallCount: Int = 0
+        private set
+    var fetchCharactersCallCount: Int = 0
+        private set
+    var fetchPersonsCallCount: Int = 0
+        private set
+    var fetchRelationsCallCount: Int = 0
         private set
 
     var fetchSubjectDetailResult: (Long) -> AppResult<Subject> = { id ->
@@ -26,6 +38,18 @@ class FakeSubjectRepository : SubjectRepository {
         AppResult.Success(episodesState.value[id].orEmpty())
     }
 
+    var fetchCharactersResult: (Long) -> AppResult<List<SubjectCharacter>> = { id ->
+        AppResult.Success(charactersState.value[id].orEmpty())
+    }
+
+    var fetchPersonsResult: (Long) -> AppResult<List<SubjectPerson>> = { id ->
+        AppResult.Success(personsState.value[id].orEmpty())
+    }
+
+    var fetchRelationsResult: (Long) -> AppResult<List<SubjectRelation>> = { id ->
+        AppResult.Success(relationsState.value[id].orEmpty())
+    }
+
     fun sendSubject(subject: Subject) {
         subjectsState.value = subjectsState.value + (subject.id to subject)
     }
@@ -35,6 +59,27 @@ class FakeSubjectRepository : SubjectRepository {
         episodes: List<Episode>,
     ) {
         episodesState.value = episodesState.value + (subjectId to episodes)
+    }
+
+    fun sendCharacters(
+        subjectId: Long,
+        characters: List<SubjectCharacter>,
+    ) {
+        charactersState.value = charactersState.value + (subjectId to characters)
+    }
+
+    fun sendPersons(
+        subjectId: Long,
+        persons: List<SubjectPerson>,
+    ) {
+        personsState.value = personsState.value + (subjectId to persons)
+    }
+
+    fun sendRelations(
+        subjectId: Long,
+        relations: List<SubjectRelation>,
+    ) {
+        relationsState.value = relationsState.value + (subjectId to relations)
     }
 
     override fun getSubjectStream(id: Long): Flow<Subject?> = subjectsState.map { it[id] }
@@ -55,6 +100,33 @@ class FakeSubjectRepository : SubjectRepository {
         val result = fetchEpisodesResult(subjectId)
         if (result is AppResult.Success) {
             sendEpisodes(subjectId, result.data)
+        }
+        return result
+    }
+
+    override suspend fun fetchCharacters(subjectId: Long): AppResult<List<SubjectCharacter>> {
+        fetchCharactersCallCount++
+        val result = fetchCharactersResult(subjectId)
+        if (result is AppResult.Success) {
+            sendCharacters(subjectId, result.data)
+        }
+        return result
+    }
+
+    override suspend fun fetchPersons(subjectId: Long): AppResult<List<SubjectPerson>> {
+        fetchPersonsCallCount++
+        val result = fetchPersonsResult(subjectId)
+        if (result is AppResult.Success) {
+            sendPersons(subjectId, result.data)
+        }
+        return result
+    }
+
+    override suspend fun fetchRelations(subjectId: Long): AppResult<List<SubjectRelation>> {
+        fetchRelationsCallCount++
+        val result = fetchRelationsResult(subjectId)
+        if (result is AppResult.Success) {
+            sendRelations(subjectId, result.data)
         }
         return result
     }

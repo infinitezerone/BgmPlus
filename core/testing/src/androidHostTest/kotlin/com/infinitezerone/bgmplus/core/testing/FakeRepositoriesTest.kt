@@ -2,7 +2,10 @@ package com.infinitezerone.bgmplus.core.testing
 
 import com.infinitezerone.bgmplus.core.common.AppResult
 import com.infinitezerone.bgmplus.core.testing.data.sampleAirScheduleList
+import com.infinitezerone.bgmplus.core.testing.data.sampleCharacterList
 import com.infinitezerone.bgmplus.core.testing.data.sampleEpisodeList
+import com.infinitezerone.bgmplus.core.testing.data.samplePersonList
+import com.infinitezerone.bgmplus.core.testing.data.sampleRelationList
 import com.infinitezerone.bgmplus.core.testing.data.sampleSubject
 import com.infinitezerone.bgmplus.core.testing.repository.FakeAuthRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeScheduleRepository
@@ -72,6 +75,9 @@ class FakeRepositoriesTest {
             val subjectRepo = FakeSubjectRepository()
             subjectRepo.sendSubject(sampleSubject)
             subjectRepo.sendEpisodes(sampleSubject.id, sampleEpisodeList)
+            subjectRepo.sendCharacters(sampleSubject.id, sampleCharacterList)
+            subjectRepo.sendPersons(sampleSubject.id, samplePersonList)
+            subjectRepo.sendRelations(sampleSubject.id, sampleRelationList)
 
             val subjectStream = subjectRepo.getSubjectStream(sampleSubject.id).first()
             assertNotNull(subjectStream)
@@ -87,5 +93,20 @@ class FakeRepositoriesTest {
             val fetchEpisodesResult = subjectRepo.fetchEpisodes(sampleSubject.id)
             assertIs<AppResult.Success<List<com.infinitezerone.bgmplus.core.model.Episode>>>(fetchEpisodesResult)
             assertEquals(1, subjectRepo.fetchEpisodesCallCount)
+
+            val fetchCharactersResult = subjectRepo.fetchCharacters(sampleSubject.id)
+            assertIs<AppResult.Success<List<com.infinitezerone.bgmplus.core.model.SubjectCharacter>>>(fetchCharactersResult)
+            assertEquals(1, subjectRepo.fetchCharactersCallCount)
+            assertEquals(2, fetchCharactersResult.data.size)
+
+            val fetchPersonsResult = subjectRepo.fetchPersons(sampleSubject.id)
+            assertIs<AppResult.Success<List<com.infinitezerone.bgmplus.core.model.SubjectPerson>>>(fetchPersonsResult)
+            assertEquals(1, subjectRepo.fetchPersonsCallCount)
+            assertEquals(3, fetchPersonsResult.data.size)
+
+            val fetchRelationsResult = subjectRepo.fetchRelations(sampleSubject.id)
+            assertIs<AppResult.Success<List<com.infinitezerone.bgmplus.core.model.SubjectRelation>>>(fetchRelationsResult)
+            assertEquals(1, subjectRepo.fetchRelationsCallCount)
+            assertEquals(1, fetchRelationsResult.data.size)
         }
 }
