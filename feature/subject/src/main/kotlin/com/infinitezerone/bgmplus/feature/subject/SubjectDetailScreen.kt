@@ -1,8 +1,12 @@
 package com.infinitezerone.bgmplus.feature.subject
 
+import android.content.Context
+import android.content.Intent
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -78,10 +83,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.infinitezerone.bgmplus.core.designsystem.component.CoverImage
 import com.infinitezerone.bgmplus.core.model.CollectionCount
@@ -120,8 +127,8 @@ fun SubjectDetailScreen(
         remember(groupedEpisodes) {
             EpisodeGroup.entries.filter { groupedEpisodes.containsKey(it) }
         }
-    var selectedGroup by rememberSaveable(availableGroups) {
-        mutableStateOf(availableGroups.firstOrNull() ?: EpisodeGroup.MAIN)
+    var selectedGroup by rememberSaveable {
+        mutableStateOf(EpisodeGroup.MAIN)
     }
     val activeGroup = if (selectedGroup in availableGroups) selectedGroup else availableGroups.firstOrNull() ?: EpisodeGroup.MAIN
     val currentEpisodes = groupedEpisodes[activeGroup] ?: emptyList()
@@ -347,7 +354,11 @@ fun SubjectDetailScreen(
                                 EpisodeGrid(
                                     episodes = currentEpisodes,
                                     watchedCount = uiState.collection?.epStatus ?: 0,
-                                    onEpisodeClick = { episode ->
+                                    onToggleWatched = { episode, isWatched ->
+                                        val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
+                                        viewModel.toggleEpisodeWatched(episode.id, isWatched, epNumber)
+                                    },
+                                    onEpisodeLongClick = { episode ->
                                         selectedEpisodeForDetail = episode
                                     },
                                 )
@@ -367,6 +378,10 @@ fun SubjectDetailScreen(
                                     },
                                 )
                             }
+                        }
+
+                        item(key = "web_discussion_section") {
+                            SubjectDiscussionCard(subjectId = subjectId)
                         }
                     }
                 }
@@ -1727,11 +1742,13 @@ private fun EpisodeListItem(
 }
 
 /** 分集网格布局（网格模式） */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun EpisodeGrid(
     episodes: List<Episode>,
     watchedCount: Int,
-    onEpisodeClick: (Episode) -> Unit,
+    onToggleWatched: (episode: Episode, isWatched: Boolean) -> Unit,
+    onEpisodeLongClick: (Episode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -1770,7 +1787,10 @@ private fun EpisodeGrid(
                                     } else {
                                         MaterialTheme.colorScheme.surfaceContainerLow
                                     },
-                                ).clickable { onEpisodeClick(episode) },
+                                ).combinedClickable(
+                                    onClick = { onToggleWatched(episode, !isWatched) },
+                                    onLongClick = { onEpisodeLongClick(episode) },
+                                ),
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(
@@ -1819,6 +1839,7 @@ private fun EpisodeDetailBottomSheet(
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
     val group = EpisodeGroup.fromType(episode.type)
     val episodeNumberText =
         if (episode.type == 0) {
@@ -1946,28 +1967,37 @@ private fun EpisodeDetailBottomSheet(
                     }
                 }
 
-                if (episode.comment > 0) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier =
+                        Modifier.clickable {
+                            launchCustomTab(context, "https://bgm.tv/ep/${episode.id}")
+                        },
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.ChatBubbleOutline,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Text(
-                                text = "吐槽 ${episode.comment}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Filled.ChatBubbleOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = if (episode.comment > 0) "吐槽 ${episode.comment}" else "吐槽",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(12.dp),
+                        )
                     }
                 }
             }
@@ -1994,9 +2024,27 @@ private fun EpisodeDetailBottomSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            // 4. 前往网页版查看单集讨论按钮
+            OutlinedButton(
+                onClick = {
+                    launchCustomTab(context, "https://bgm.tv/ep/${episode.id}")
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (episode.comment > 0) "在应用内浏览该集讨论与吐槽 (${episode.comment})" else "在应用内浏览该集讨论与吐槽",
+                )
+            }
 
-            // 4. "已看过 / 未看" toggle button with instant check-in
+            Spacer(modifier = Modifier.height(2.dp))
+
+            // 5. "已看过 / 未看" toggle button with instant check-in
             if (isWatched) {
                 FilledTonalButton(
                     onClick = {
@@ -2029,6 +2077,97 @@ private fun EpisodeDetailBottomSheet(
                 }
             }
         }
+    }
+}
+
+/** 条目网页版吐槽与讨论入口卡片 */
+@Composable
+private fun SubjectDiscussionCard(
+    subjectId: Long,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = "全网讨论与吐槽",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Text(
+                text = "使用 Chrome Custom Tabs 在应用内沉浸浏览该条目的全网短评吐槽箱、讨论版话题与长评日志。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { launchCustomTab(context, "https://bgm.tv/subject/$subjectId/comments") },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("全网吐槽箱")
+                }
+                OutlinedButton(
+                    onClick = { launchCustomTab(context, "https://bgm.tv/subject/$subjectId/topics") },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("讨论版话题")
+                }
+            }
+        }
+    }
+}
+
+/** 使用 Chrome Custom Tabs 在应用内优雅打开网页 */
+private fun launchCustomTab(
+    context: Context,
+    url: String,
+) {
+    try {
+        val customTabsIntent =
+            CustomTabsIntent
+                .Builder()
+                .setShowTitle(true)
+                .setUrlBarHidingEnabled(true)
+                .build()
+        customTabsIntent.launchUrl(context, url.toUri())
+    } catch (e: Exception) {
+        val fallbackIntent = Intent(Intent.ACTION_VIEW, url.toUri())
+        context.startActivity(fallbackIntent)
     }
 }
 

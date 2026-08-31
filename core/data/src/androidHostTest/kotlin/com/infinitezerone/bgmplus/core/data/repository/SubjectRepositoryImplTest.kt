@@ -118,7 +118,10 @@ class SubjectRepositoryImplTest {
 
         override suspend fun getMe(): com.infinitezerone.bgmplus.core.model.UserProfile = error("Not needed")
 
-        override suspend fun getCollection(subjectId: Long): com.infinitezerone.bgmplus.core.model.UserCollection? = null
+        override suspend fun getCollection(
+            username: String,
+            subjectId: Long,
+        ): com.infinitezerone.bgmplus.core.model.UserCollection? = null
 
         override suspend fun updateCollection(
             subjectId: Long,
@@ -283,5 +286,75 @@ class SubjectRepositoryImplTest {
 
             assertIs<AppResult.Error>(result)
             assertTrue(result.throwable is IllegalStateException)
+        }
+
+    @Test
+    fun getSubjectStream_and_fetchSubjectDetail_persistRatingAndCollection() =
+        runTest {
+            val subjectDao = FakeSubjectDao()
+            val episodeDao = FakeEpisodeDao()
+            val testSubject =
+                Subject(
+                    id = 528828L,
+                    name = "骸骨騎士様",
+                    nameCn = "骸骨骑士大人",
+                    rating =
+                        com.infinitezerone.bgmplus.core.model.Rating(
+                            score = 7.5,
+                            rank = 1200,
+                            total = 450,
+                            count = mapOf("8" to 200, "9" to 150),
+                        ),
+                    collection =
+                        com.infinitezerone.bgmplus.core.model.CollectionCount(
+                            wish = 10,
+                            collect = 300,
+                            doing = 50,
+                            onHold = 5,
+                            dropped = 2,
+                        ),
+                    tags =
+                        listOf(
+                            com.infinitezerone.bgmplus.core.model
+                                .Tag("异世界", 120),
+                        ),
+                )
+            val apiService =
+                FakeBangumiApiService().apply {
+                    // Return testSubject
+                }
+            val repo = SubjectRepositoryImpl(apiService, subjectDao, episodeDao)
+            val entity =
+                SubjectEntity(
+                    id = testSubject.id,
+                    type = testSubject.type,
+                    name = testSubject.name,
+                    nameCn = testSubject.nameCn,
+                    summary = testSubject.summary,
+                    date = testSubject.date,
+                    eps = testSubject.eps,
+                    totalEpisodes = testSubject.totalEpisodes,
+                    coverUrl = "",
+                    ratingScore = testSubject.rating?.score ?: 0.0,
+                    ratingRank = testSubject.rating?.rank ?: 0,
+                    ratingTotal = testSubject.rating?.total ?: 0,
+                    ratingCountJson = """{"8":200,"9":150}""",
+                    collectionWish = 10,
+                    collectionCollect = 300,
+                    collectionDoing = 50,
+                    collectionOnHold = 5,
+                    collectionDropped = 2,
+                    tagsJson = """[{"name":"异世界","count":120}]""",
+                )
+            subjectDao.insertSubject(entity)
+
+            val streamSubject = repo.getSubjectStream(528828L).first()
+            kotlin.test.assertNotNull(streamSubject)
+            assertEquals(7.5, streamSubject.rating?.score)
+            assertEquals(450, streamSubject.rating?.total)
+            assertEquals(200, streamSubject.rating?.count?.get("8"))
+            assertEquals(50, streamSubject.collection?.doing)
+            assertEquals(1, streamSubject.tags.size)
+            assertEquals("异世界", streamSubject.tags[0].name)
         }
 }

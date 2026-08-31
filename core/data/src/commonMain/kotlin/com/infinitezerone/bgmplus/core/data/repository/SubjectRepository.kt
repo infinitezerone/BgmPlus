@@ -5,15 +5,20 @@ import com.infinitezerone.bgmplus.core.database.dao.EpisodeDao
 import com.infinitezerone.bgmplus.core.database.dao.SubjectDao
 import com.infinitezerone.bgmplus.core.database.entity.EpisodeEntity
 import com.infinitezerone.bgmplus.core.database.entity.SubjectEntity
+import com.infinitezerone.bgmplus.core.model.CollectionCount
 import com.infinitezerone.bgmplus.core.model.Episode
+import com.infinitezerone.bgmplus.core.model.Rating
 import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.core.model.SubjectCharacter
 import com.infinitezerone.bgmplus.core.model.SubjectImages
 import com.infinitezerone.bgmplus.core.model.SubjectPerson
 import com.infinitezerone.bgmplus.core.model.SubjectRelation
+import com.infinitezerone.bgmplus.core.model.Tag
 import com.infinitezerone.bgmplus.core.network.BangumiApiService
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 interface SubjectRepository {
     fun getSubjectStream(id: Long): Flow<Subject?>
@@ -31,6 +36,13 @@ interface SubjectRepository {
     suspend fun fetchRelations(subjectId: Long): AppResult<List<SubjectRelation>>
 }
 
+private val repositoryJson =
+    Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        coerceInputValues = true
+    }
+
 class SubjectRepositoryImpl(
     private val apiService: BangumiApiService,
     private val subjectDao: SubjectDao,
@@ -39,6 +51,43 @@ class SubjectRepositoryImpl(
     override fun getSubjectStream(id: Long): Flow<Subject?> =
         subjectDao.getSubjectById(id).map { entity ->
             entity?.let {
+                val ratingCount =
+                    if (it.ratingCountJson.isNotBlank()) {
+                        try {
+                            repositoryJson.decodeFromString<Map<String, Int>>(it.ratingCountJson)
+                        } catch (e: Exception) {
+                            emptyMap()
+                        }
+                    } else {
+                        emptyMap()
+                    }
+                val tagsList =
+                    if (it.tagsJson.isNotBlank()) {
+                        try {
+                            repositoryJson.decodeFromString<List<Tag>>(it.tagsJson)
+                        } catch (e: Exception) {
+                            emptyList()
+                        }
+                    } else {
+                        emptyList()
+                    }
+                val collectionCount =
+                    if (it.collectionWish > 0 ||
+                        it.collectionCollect > 0 ||
+                        it.collectionDoing > 0 ||
+                        it.collectionOnHold > 0 ||
+                        it.collectionDropped > 0
+                    ) {
+                        CollectionCount(
+                            wish = it.collectionWish,
+                            collect = it.collectionCollect,
+                            doing = it.collectionDoing,
+                            onHold = it.collectionOnHold,
+                            dropped = it.collectionDropped,
+                        )
+                    } else {
+                        null
+                    }
                 Subject(
                     id = it.id,
                     type = it.type,
@@ -49,6 +98,15 @@ class SubjectRepositoryImpl(
                     eps = it.eps,
                     totalEpisodes = it.totalEpisodes,
                     images = SubjectImages(large = it.coverUrl),
+                    rating =
+                        Rating(
+                            score = it.ratingScore,
+                            rank = it.ratingRank,
+                            total = it.ratingTotal,
+                            count = ratingCount,
+                        ),
+                    collection = collectionCount,
+                    tags = tagsList,
                 )
             }
         }
@@ -56,6 +114,26 @@ class SubjectRepositoryImpl(
     override suspend fun fetchSubjectDetail(id: Long): AppResult<Subject> =
         try {
             val subject = apiService.getSubject(id)
+            val ratingCountJson =
+                if (!subject.rating?.count.isNullOrEmpty()) {
+                    try {
+                        repositoryJson.encodeToString(subject.rating!!.count)
+                    } catch (e: Exception) {
+                        ""
+                    }
+                } else {
+                    ""
+                }
+            val tagsJson =
+                if (subject.tags.isNotEmpty()) {
+                    try {
+                        repositoryJson.encodeToString(subject.tags)
+                    } catch (e: Exception) {
+                        ""
+                    }
+                } else {
+                    ""
+                }
             val entity =
                 SubjectEntity(
                     id = subject.id,
@@ -69,6 +147,14 @@ class SubjectRepositoryImpl(
                     coverUrl = subject.images?.bestImage ?: "",
                     ratingScore = subject.rating?.score ?: 0.0,
                     ratingRank = subject.rating?.rank ?: 0,
+                    ratingTotal = subject.rating?.total ?: 0,
+                    ratingCountJson = ratingCountJson,
+                    collectionWish = subject.collection?.wish ?: 0,
+                    collectionCollect = subject.collection?.collect ?: 0,
+                    collectionDoing = subject.collection?.doing ?: 0,
+                    collectionOnHold = subject.collection?.onHold ?: 0,
+                    collectionDropped = subject.collection?.dropped ?: 0,
+                    tagsJson = tagsJson,
                 )
             subjectDao.insertSubject(entity)
             AppResult.Success(subject)

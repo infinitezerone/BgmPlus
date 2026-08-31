@@ -16,6 +16,14 @@ data class SubjectEntity(
     val coverUrl: String,
     val ratingScore: Double,
     val ratingRank: Int,
+    val ratingTotal: Int = 0,
+    val ratingCountJson: String = "",
+    val collectionWish: Int = 0,
+    val collectionCollect: Int = 0,
+    val collectionDoing: Int = 0,
+    val collectionOnHold: Int = 0,
+    val collectionDropped: Int = 0,
+    val tagsJson: String = "",
     val updatedAt: Long = 0L,
 )
 
