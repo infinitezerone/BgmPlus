@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -82,6 +83,7 @@ private val Weekdays =
 fun ScheduleScreen(
     onSubjectClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    onSearchClick: () -> Unit = {},
 ) {
     val viewModel: ScheduleViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -97,6 +99,12 @@ fun ScheduleScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = onSearchClick) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = "搜索条目",
+                        )
+                    }
                     IconButton(onClick = viewModel::refresh) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,

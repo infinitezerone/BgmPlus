@@ -5,8 +5,14 @@ import androidx.navigation3.runtime.NavKey
 import com.infinitezerone.bgmplus.feature.schedule.ScheduleScreen
 
 /** 「放送」Tab 的导航条目；由 `:app` 的 BgmNavHost 聚合（NiA 模式，feature 不感知导航容器） */
-fun EntryProviderScope<NavKey>.scheduleEntry(onSubjectClick: (Long) -> Unit) {
+fun EntryProviderScope<NavKey>.scheduleEntry(
+    onSubjectClick: (Long) -> Unit,
+    onSearchClick: () -> Unit = {},
+) {
     entry<ScheduleRoute> {
-        ScheduleScreen(onSubjectClick = onSubjectClick)
+        ScheduleScreen(
+            onSubjectClick = onSubjectClick,
+            onSearchClick = onSearchClick,
+        )
     }
 }

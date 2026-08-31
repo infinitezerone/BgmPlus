@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.infinitezerone.bgmplus.feature.schedule.navigation.scheduleEntry
+import com.infinitezerone.bgmplus.feature.search.navigation.SearchRoute
 import com.infinitezerone.bgmplus.feature.search.navigation.searchEntry
 import com.infinitezerone.bgmplus.feature.subject.navigation.SubjectDetailRoute
 import com.infinitezerone.bgmplus.feature.subject.navigation.subjectEntry
@@ -25,6 +26,9 @@ fun BgmNavHost(
                         onSubjectClick = { subjectId ->
                             navState.navigateTo(SubjectDetailRoute(subjectId))
                         },
+                        onSearchClick = {
+                            navState.navigateTo(SearchRoute)
+                        },
                     )
 
                     userEntry()
@@ -42,6 +46,9 @@ fun BgmNavHost(
                         ExploreScreen(
                             onSubjectClick = { subjectId ->
                                 navState.navigateTo(SubjectDetailRoute(subjectId))
+                            },
+                            onSearchClick = {
+                                navState.navigateTo(SearchRoute)
                             },
                         )
                     }
