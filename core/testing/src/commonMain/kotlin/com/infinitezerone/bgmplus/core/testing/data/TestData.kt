@@ -1,11 +1,13 @@
 package com.infinitezerone.bgmplus.core.testing.data
 
 import com.infinitezerone.bgmplus.core.model.AirSchedule
+import com.infinitezerone.bgmplus.core.model.CollectionCount
 import com.infinitezerone.bgmplus.core.model.Episode
 import com.infinitezerone.bgmplus.core.model.Rating
 import com.infinitezerone.bgmplus.core.model.SiteLink
 import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.core.model.SubjectImages
+import com.infinitezerone.bgmplus.core.model.Tag
 import com.infinitezerone.bgmplus.core.model.UserAvatar
 import com.infinitezerone.bgmplus.core.model.UserProfile
 
@@ -28,6 +30,34 @@ val sampleSubject =
                 score = 8.9,
                 total = 15000,
                 rank = 1,
+                count =
+                    mapOf(
+                        "1" to 15,
+                        "2" to 10,
+                        "3" to 25,
+                        "4" to 40,
+                        "5" to 120,
+                        "6" to 450,
+                        "7" to 1800,
+                        "8" to 5200,
+                        "9" to 5800,
+                        "10" to 1540,
+                    ),
+            ),
+        collection =
+            CollectionCount(
+                wish = 1200,
+                collect = 28000,
+                doing = 4500,
+                onHold = 300,
+                dropped = 150,
+            ),
+        tags =
+            listOf(
+                Tag(name = "日常", count = 3500),
+                Tag(name = "治愈", count = 2800),
+                Tag(name = "奇幻", count = 2400),
+                Tag(name = "MADHOUSE", count = 1800),
             ),
     )
 
