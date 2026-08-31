@@ -40,11 +40,19 @@ class UserViewModel(
         authRepository.isLoggedIn
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** 打开系统浏览器进行 OAuth 授权；回调由 `:app` 深链处理，结果经全局 Snackbar 反馈 */
-    fun beginLogin(context: Context) {
+    /** 打开系统浏览器进行 OAuth 授权；使用 Ephemeral 隔离会话确保支持输入账号密码/切换新账号 */
+    fun beginLogin(
+        context: Context,
+        ephemeral: Boolean = true,
+    ) {
         viewModelScope.launch {
             val authorizeUrl = authRepository.beginLogin()
-            CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(authorizeUrl))
+            val customTabsIntent =
+                CustomTabsIntent
+                    .Builder()
+                    .setEphemeralBrowsingEnabled(ephemeral)
+                    .build()
+            customTabsIntent.launchUrl(context, Uri.parse(authorizeUrl))
         }
     }
 
