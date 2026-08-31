@@ -101,6 +101,11 @@ class FakeRepositoriesConsumerTest {
             assertEquals(2, updated.type)
             assertEquals(10, updated.rate)
             assertEquals(1, collectionRepo.updateCollectionCallCount)
+
+            val fetchResult = collectionRepo.fetchUserCollections("test_user", subjectType = 2, type = CollectionType.COLLECT)
+            assertIs<AppResult.Success<List<com.infinitezerone.bgmplus.core.model.UserCollection>>>(fetchResult)
+            assertEquals(1, fetchResult.data.size)
+            assertEquals(1, collectionRepo.fetchUserCollectionsCallCount)
         }
 
     @Test

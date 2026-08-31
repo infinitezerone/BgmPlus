@@ -87,6 +87,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.infinitezerone.bgmplus.core.designsystem.theme.BgmPlusTheme
 import com.infinitezerone.bgmplus.core.designsystem.theme.ThemePreviews
+import com.infinitezerone.bgmplus.core.model.CollectionType
 import com.infinitezerone.bgmplus.core.model.SyncInterval
 import com.infinitezerone.bgmplus.core.model.UserAvatar
 import com.infinitezerone.bgmplus.core.model.UserProfile
@@ -97,6 +98,7 @@ private const val BGM_HOME_URL = "https://bgm.tv"
 
 @Composable
 fun UserScreen(
+    onCollectionClick: (CollectionType) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: UserViewModel = koinViewModel(),
 ) {
@@ -120,11 +122,7 @@ fun UserScreen(
                 snackbarHostState.showSnackbar("本地缓存与临时数据已清理 ✨")
             }
         },
-        onCollectionClick = { label ->
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar("「$label」分类筛选将在后续版本上线")
-            }
-        },
+        onCollectionClick = onCollectionClick,
         onSelectSyncInterval = viewModel::setSyncInterval,
         onSyncNow = {
             viewModel.syncBangumiDataNow { success ->
@@ -153,7 +151,7 @@ fun UserScreenContent(
     onLogoutAll: () -> Unit,
     onOpenBgmWeb: () -> Unit,
     onClearCache: () -> Unit,
-    onCollectionClick: (String) -> Unit,
+    onCollectionClick: (CollectionType) -> Unit,
     onSelectSyncInterval: (SyncInterval) -> Unit,
     onSyncNow: () -> Unit,
     snackbarHostState: SnackbarHostState,
@@ -868,7 +866,7 @@ private fun MultiAccountQuickCard(
 @Composable
 private fun CollectionOverviewCard(
     isLoggedIn: Boolean,
-    onCollectionClick: (String) -> Unit,
+    onCollectionClick: (CollectionType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -909,7 +907,7 @@ private fun CollectionOverviewCard(
                     count = if (isLoggedIn) "12" else "-",
                     icon = Icons.Filled.PlayCircleOutline,
                     tint = MaterialTheme.colorScheme.primary,
-                    onClick = { onCollectionClick("在看") },
+                    onClick = { onCollectionClick(CollectionType.DOING) },
                     modifier = Modifier.weight(1f),
                 )
                 CollectionStatusItem(
@@ -917,7 +915,7 @@ private fun CollectionOverviewCard(
                     count = if (isLoggedIn) "28" else "-",
                     icon = Icons.Filled.BookmarkBorder,
                     tint = MaterialTheme.colorScheme.tertiary,
-                    onClick = { onCollectionClick("想看") },
+                    onClick = { onCollectionClick(CollectionType.WISH) },
                     modifier = Modifier.weight(1f),
                 )
                 CollectionStatusItem(
@@ -925,7 +923,7 @@ private fun CollectionOverviewCard(
                     count = if (isLoggedIn) "86" else "-",
                     icon = Icons.Filled.CheckCircleOutline,
                     tint = MaterialTheme.colorScheme.secondary,
-                    onClick = { onCollectionClick("看过") },
+                    onClick = { onCollectionClick(CollectionType.COLLECT) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -942,7 +940,7 @@ private fun CollectionOverviewCard(
                     count = if (isLoggedIn) "3" else "-",
                     icon = Icons.Filled.PauseCircleOutline,
                     tint = MaterialTheme.colorScheme.outline,
-                    onClick = { onCollectionClick("搁置") },
+                    onClick = { onCollectionClick(CollectionType.ON_HOLD) },
                     modifier = Modifier.weight(1f),
                 )
                 CollectionStatusItem(
@@ -950,7 +948,7 @@ private fun CollectionOverviewCard(
                     count = if (isLoggedIn) "1" else "-",
                     icon = Icons.Filled.Cancel,
                     tint = MaterialTheme.colorScheme.error,
-                    onClick = { onCollectionClick("抛弃") },
+                    onClick = { onCollectionClick(CollectionType.DROPPED) },
                     modifier = Modifier.weight(1f),
                 )
             }

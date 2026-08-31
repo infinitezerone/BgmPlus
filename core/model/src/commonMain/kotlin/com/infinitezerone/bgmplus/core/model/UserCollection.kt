@@ -15,6 +15,7 @@ data class UserCollection(
     @SerialName("ep_status") val epStatus: Int = 0,
     @SerialName("vol_status") val volStatus: Int = 0,
     @SerialName("updated_at") val updatedAt: String = "",
+    val subject: Subject? = null,
 )
 
 enum class CollectionType(

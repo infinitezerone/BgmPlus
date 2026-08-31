@@ -56,6 +56,7 @@ interface BangumiApiService {
         rate: Int? = null,
         comment: String? = null,
         private: Boolean = false,
+        epStatus: Int? = null,
     )
 
     suspend fun updateEpisodeStatus(
@@ -115,7 +116,7 @@ class BangumiApiServiceImpl(
     ): UserCollectionPageResponse =
         client
             .get("$baseUrl/v0/users/$username/collections") {
-                parameter("subject_type", subjectType)
+                if (subjectType > 0) parameter("subject_type", subjectType)
                 if (type != null) parameter("type", type)
                 parameter("limit", limit)
                 parameter("offset", offset)
@@ -136,6 +137,7 @@ class BangumiApiServiceImpl(
         val rate: Int? = null,
         val comment: String? = null,
         val `private`: Boolean = false,
+        @kotlinx.serialization.SerialName("ep_status") val epStatus: Int? = null,
     )
 
     override suspend fun updateCollection(
@@ -144,6 +146,7 @@ class BangumiApiServiceImpl(
         rate: Int?,
         comment: String?,
         private: Boolean,
+        epStatus: Int?,
     ) {
         client.post("$baseUrl/v0/users/-/collections/$subjectId") {
             contentType(ContentType.Application.Json)
@@ -153,6 +156,7 @@ class BangumiApiServiceImpl(
                     rate = rate,
                     comment = comment,
                     private = private,
+                    epStatus = epStatus,
                 ),
             )
         }
