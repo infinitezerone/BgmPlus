@@ -4,7 +4,7 @@
 通用工具与基础抽象层，提供全工程通用的协程调度器注入模型（`BgmDispatchers`）、结果封装（`AppResult<T>`）及通用工具类。
 
 ## 🏛️ 依赖关系
-* **依赖的上游**：`:core:model`
+* **依赖的上游**：无（仅依赖通用 Kotlin 库）
 * **被谁依赖**：`:core:network`, `:core:database`, `:core:datastore`, `:core:data`, 所有 `:feature:*`, `:app`
 
 ## ⚠️ 架构红线与约束

@@ -8,7 +8,7 @@ Exact versions live in `gradle/libs.versions.toml` and `build-logic` convention 
 
 - **Language**: Kotlin (K2); JVM target 25 with core library desugaring (governs the available `java.*` API surface)
 - **SDK levels**: minSdk 31, compileSdk/targetSdk 37 (governs the available `android.*` APIs)
-- **Multiplatform**: all `:core:*` modules are Kotlin Multiplatform (`commonMain`, androidTarget only — no desktop/iOS targets); `:app` and `:core:designsystem` are Android-only
+- **Multiplatform**: `:core:model`, `:core:common`, `:core:network`, `:core:database`, `:core:datastore`, `:core:data`, and `:core:testing` are Kotlin Multiplatform (`commonMain`, androidTarget only — no desktop/iOS targets). `:app`, `:core:designsystem`, and `:core:navigation` are Android-only.
 - **UI**: Jetpack Compose + Material 3 Expressive
 - **Stack**: Ktor 3 + kotlinx.serialization, Room 3 (KMP) + DataStore, Coil 3, Koin 4
 
@@ -49,6 +49,18 @@ BgmPlus/
 
 ## Coding Guidelines
 
+### Canonical Precedents and New Decisions
+
+Before implementing a new pattern, find the closest applicable precedent and state it in the change summary. Do not treat a superficially similar file as a precedent when its lifecycle, navigation shape, or persistence behaviour differs.
+
+- **Top-level read-only feature**: `:feature:schedule` — stateful screen, repository-backed ViewModel, navigation callback, and ViewModel test.
+- **Parameterized detail destination**: `:feature:subject` — typed route argument, entry-scoped ViewModel, back callback, fetch-then-observe repository flow, and test coverage.
+- **User-triggered mutation**: `CollectionRepository` in `:core:data` — use this for cancellation, error, and local/remote consistency decisions.
+- **Security-sensitive authentication**: `AuthRepository` in `:core:data` plus `BgmPkce` in `:core:network` — never create an alternate token or OAuth flow.
+- **Feature test shape**: the corresponding `*ViewModelTest` beside each feature is the default precedent for state transitions and error handling.
+
+If none of these precedents fits, stop before introducing a new architectural pattern. Propose a concise decision containing: the problem, the rejected closest precedent, the proposed module/API boundary, persistence and error behaviour, and the verification plan. Implement it only after that decision is accepted and add the new canonical precedent here when it is intended for reuse.
+
 ### Architecture & State
 - Unidirectional Data Flow (MVI): ViewModels expose a single, immutable `StateFlow<UiState>`; one-off events (snackbars, navigation) go through `Channel`/`SharedFlow`.
 - Wrap data/domain operations in `AppResult<T>` (`Success`/`Error`/`Loading`, defined in `:core:common`).
@@ -68,8 +80,8 @@ BgmPlus/
 ### Build System (AGP 9)
 - `:app` / `:core:designsystem` use **AGP built-in Kotlin** — never re-add `org.jetbrains.kotlin.android`; Kotlin compile config goes through `android.compileOptions` (jvmTarget defaults to `targetCompatibility`).
 - KMP modules use `com.android.kotlin.multiplatform.library` (applied by `bgmplus.kmp.library`), which is **single-variant** (no debug/release) and has **no top-level `android {}` extension** — Android config (namespace, desugaring, host tests) goes through `Project.kmpAndroidLibrary { }` (finalizeDsl) in `build-logic`, and test source sets are named `androidHostTest` / `androidDeviceTest` with tests **opt-in** (`withHostTest` is already enabled in the convention plugin).
-- The android unit test task is `testAndroid` (per module) or `allTests` (KMP aggregate); `testDebugUnitTest` no longer exists.
-- **Green ≠ tested**: a misnamed or empty test source set fails silently (the `androidUnitTest` → `androidHostTest` incident shipped a build where tests ran zero cases, all green). After any build-script or source-set change, verify `build/test-results/<task>/*.xml` exists with `tests > 0` before claiming tests pass — BUILD SUCCESSFUL alone proves nothing.
+- KMP modules use `testAndroid` (per module) or `allTests` (aggregate); Android-only modules use the standard variant task such as `testDebugUnitTest`. Select the task from the module's applied convention plugin instead of assuming one task name for all modules.
+- **Green ≠ tested**: a misnamed or empty test source set fails silently (the `androidUnitTest` → `androidHostTest` incident shipped a build where tests ran zero cases, all green). After any build-script or source-set change, verify the selected task's `build/test-results/<task>/*.xml` exists with `tests > 0` before claiming tests pass — BUILD SUCCESSFUL alone proves nothing.
 
 ### Compose & Design System
 - Always build under `BgmPlusTheme` using tokens from `:core:designsystem`; no hardcoded colors or typography in features.
@@ -80,7 +92,8 @@ BgmPlus/
 
 ```bash
 ./gradlew :app:assembleDebug                  # assemble debug APK — also the cross-module compile gate
-./gradlew :core:network:testAndroid           # unit tests for ONE module; substitute the module you touched
+./gradlew :core:network:testAndroid           # KMP module unit tests; substitute a touched KMP module
+./gradlew :core:navigation:testDebugUnitTest  # Android-only module unit tests; substitute a touched Android module
 ./gradlew spotlessCheck                       # ktlint + whitespace gate (spotlessApply to auto-fix)
 ./gradlew allTests                             # FULL test suite — only for cross-cutting changes (see rule 2)
 ./gradlew clean                               # rarely needed
@@ -88,7 +101,7 @@ BgmPlus/
 
 **Rules for AI agents:**
 
-1. **Verify before claiming**: the default loop for everyday changes is targeted, not full-suite — `./gradlew spotlessCheck`, then tests for each touched module (`./gradlew <module>:testAndroid`), then `./gradlew :app:assembleDebug`. Report failures honestly.
+1. **Verify before claiming**: the default loop for everyday changes is targeted, not full-suite — `./gradlew spotlessCheck`, then the matching test task for each touched module (`testAndroid` for KMP; normally `testDebugUnitTest` for Android-only), then `./gradlew :app:assembleDebug`. Report failures honestly.
 2. **Full `./gradlew allTests` only for cross-cutting changes**: touching `build-logic/`, `gradle/libs.versions.toml`, or the shared bases `:core:model` / `:core:common` (everything depends on them), and before opening a PR.
 3. **Declare dependencies in the catalog first**: add versions/libraries/plugins to `gradle/libs.versions.toml`, then reference them via type-safe accessors (`libs.xxx`).
 4. **Respect module boundaries**: no circular dependencies; never violate feature isolation (see Module Rules).

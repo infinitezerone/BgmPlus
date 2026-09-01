@@ -4,7 +4,7 @@
 应用的 UI 基础设计系统，基于 Jetpack Compose 与 Material 3 Expressive 构建。提供全局主题（`BgmPlusTheme`）、调色板、排版规范、通用图标与基础通用原子组件（如 `CoverImage`）。
 
 ## 🏛️ 依赖关系
-* **依赖的上游**：`:core:model`
+* **依赖的上游**：Jetpack Compose、Material 3 与 Coil；不依赖任何项目数据模块
 * **被谁依赖**：所有 `:feature:*` 模块, `:app`
 * **禁止依赖**：禁止依赖 `:core:data`, `:core:network`, `:core:database` 等数据基础设施模块。
 
