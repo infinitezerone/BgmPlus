@@ -111,6 +111,7 @@ fun SubjectDetailScreen(
     subjectId: Long,
     onBackClick: () -> Unit,
     onSubjectClick: (Long) -> Unit = {},
+    onTagClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SubjectDetailViewModel = koinViewModel(parameters = { parametersOf(subjectId) }),
 ) {
@@ -280,6 +281,7 @@ fun SubjectDetailScreen(
                                 rating = subject.rating,
                                 collection = subject.collection,
                                 tags = subject.tags,
+                                onTagClick = onTagClick,
                             )
                         }
 
@@ -874,6 +876,7 @@ private fun RatingDistributionCard(
     rating: Rating?,
     collection: CollectionCount?,
     tags: List<Tag>,
+    onTagClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val hasRatingData = rating != null && (rating.total > 0 || rating.count.isNotEmpty())
@@ -924,7 +927,7 @@ private fun RatingDistributionCard(
 
             // c. 热门标签
             if (hasTags) {
-                TagsSection(tags = tags)
+                TagsSection(tags = tags, onTagClick = onTagClick)
             }
         }
     }
@@ -1176,6 +1179,7 @@ private fun CollectionStatusBadge(
 @Composable
 private fun TagsSection(
     tags: List<Tag>,
+    onTagClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -1196,6 +1200,7 @@ private fun TagsSection(
         ) {
             tags.forEach { tag ->
                 Surface(
+                    onClick = { onTagClick(tag.name) },
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {

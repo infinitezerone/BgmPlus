@@ -31,6 +31,7 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
             add("implementation", libs.findLibrary("androidx-browser").get())
             add("implementation", libs.findLibrary("androidx-navigation3-runtime").get())
             add("implementation", libs.findLibrary("koin-androidx-compose").get())
+            add("implementation", libs.findLibrary("coil-compose").get())
 
             add("testImplementation", project(":core:testing"))
             add("testImplementation", libs.findLibrary("kotlinx-coroutines-test").get())

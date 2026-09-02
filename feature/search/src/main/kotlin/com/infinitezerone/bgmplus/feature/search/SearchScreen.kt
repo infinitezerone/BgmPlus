@@ -44,6 +44,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,11 +71,19 @@ import org.koin.androidx.compose.koinViewModel
 fun SearchScreen(
     onSubjectClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    initialQuery: String = "",
     onBackClick: (() -> Unit)? = null,
     viewModel: SearchViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(initialQuery) {
+        if (initialQuery.isNotBlank() && uiState.query.isBlank()) {
+            viewModel.onQueryChange(initialQuery)
+            viewModel.search()
+        }
+    }
 
     Scaffold(
         topBar = {

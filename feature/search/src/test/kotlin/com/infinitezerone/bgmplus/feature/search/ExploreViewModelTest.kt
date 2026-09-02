@@ -2,6 +2,8 @@ package com.infinitezerone.bgmplus.feature.search
 
 import com.infinitezerone.bgmplus.core.common.AppResult
 import com.infinitezerone.bgmplus.core.testing.data.sampleSubject
+import com.infinitezerone.bgmplus.core.testing.repository.FakeAuthRepository
+import com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeSearchRepository
 import com.infinitezerone.bgmplus.core.testing.util.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,111 +24,217 @@ class ExploreViewModelTest {
     @Test
     fun initialLoadTriggersAdvancedSearchSuccessfully() =
         runTest {
-            val repository = FakeSearchRepository()
-            repository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = ExploreViewModel(repository)
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository(initialLoggedIn = true)
+            searchRepository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
 
             advanceUntilIdle()
 
-            assertEquals(1, repository.advancedSearchCallCount)
+            assertEquals(1, searchRepository.advancedSearchCallCount)
             val state = viewModel.uiState.value
             assertFalse(state.isLoading)
             assertFalse(state.isRefreshing)
             assertNull(state.error)
             assertEquals(1, state.subjects.size)
             assertEquals("葬送的芙莉莲", state.subjects.first().nameCn)
-            assertEquals(DEFAULT_SEASONS.first(), state.selectedSeason)
+            assertEquals(ExploreViewMode.WATERFALL, state.viewMode)
+            assertEquals(ExploreMood.TRENDING, state.selectedMood)
+            assertEquals(CURRENT_SEASON, state.selectedSeason)
             assertEquals(ExploreCategory.ANIME, state.selectedCategory)
             assertEquals(ExploreSort.HEAT, state.selectedSort)
             assertNull(state.selectedTag)
+            assertTrue(state.isLoggedIn)
+        }
+
+    @Test
+    fun onViewModeChangeUpdatesViewMode() =
+        runTest {
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
+            advanceUntilIdle()
+
+            assertEquals(ExploreViewMode.WATERFALL, viewModel.uiState.value.viewMode)
+
+            viewModel.onViewModeChange(ExploreViewMode.IMMERSIVE)
+            assertEquals(ExploreViewMode.IMMERSIVE, viewModel.uiState.value.viewMode)
+
+            viewModel.onViewModeChange(ExploreViewMode.WATERFALL)
+            assertEquals(ExploreViewMode.WATERFALL, viewModel.uiState.value.viewMode)
+        }
+
+    @Test
+    fun onMoodSelectUpdatesSortTagAndSearches() =
+        runTest {
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
+            advanceUntilIdle()
+
+            viewModel.onMoodSelect(ExploreMood.HEALING)
+            advanceUntilIdle()
+
+            assertEquals(2, searchRepository.advancedSearchCallCount)
+            assertEquals(ExploreMood.HEALING, viewModel.uiState.value.selectedMood)
+            assertEquals("治愈", viewModel.uiState.value.selectedTag)
+            assertEquals(ExploreSort.SCORE, viewModel.uiState.value.selectedSort)
+            assertEquals(ALL_TIME_SEASON, viewModel.uiState.value.selectedSeason)
+            assertNull(searchRepository.lastAdvancedRequest?.filter?.airDate)
+            assertEquals(listOf("治愈"), searchRepository.lastAdvancedRequest?.filter?.tag)
+            assertEquals("score", searchRepository.lastAdvancedRequest?.sort)
+        }
+
+    @Test
+    fun toggleWishWhenNotLoggedInShowsLoginDialog() =
+        runTest {
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository(initialLoggedIn = false)
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isLoggedIn)
+            assertFalse(viewModel.uiState.value.showLoginPromptDialog)
+
+            viewModel.toggleWish(sampleSubject.id)
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.showLoginPromptDialog)
+            assertEquals(0, collectionRepository.updateCollectionCallCount)
+
+            viewModel.dismissLoginPrompt()
+            assertFalse(viewModel.uiState.value.showLoginPromptDialog)
+        }
+
+    @Test
+    fun toggleWishWhenLoggedInAddsToCollectionAndUpdatesWishedIds() =
+        runTest {
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository(initialLoggedIn = true)
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
+            advanceUntilIdle()
+
+            assertFalse(
+                viewModel.uiState.value.wishedSubjectIds
+                    .contains(sampleSubject.id),
+            )
+
+            viewModel.toggleWish(sampleSubject.id)
+            advanceUntilIdle()
+
+            assertEquals(1, collectionRepository.updateCollectionCallCount)
+            assertTrue(
+                viewModel.uiState.value.wishedSubjectIds
+                    .contains(sampleSubject.id),
+            )
+            assertEquals("已加入「想看」列表", viewModel.uiState.value.userMessage)
+
+            // 再次点击提示已在追番中
+            viewModel.toggleWish(sampleSubject.id)
+            advanceUntilIdle()
+
+            assertEquals(1, collectionRepository.updateCollectionCallCount)
+            assertEquals("该番剧已在您的追番列表中", viewModel.uiState.value.userMessage)
         }
 
     @Test
     fun onSeasonSelectTriggersNewSearchWithUpdatedAirDate() =
         runTest {
-            val repository = FakeSearchRepository()
-            repository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = ExploreViewModel(repository)
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            searchRepository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
             advanceUntilIdle()
 
-            val summerSeason = DEFAULT_SEASONS.first { it.id == "2024-q3" }
-            viewModel.onSeasonSelect(summerSeason)
+            val targetSeason = DEFAULT_SEASONS.first { it != CURRENT_SEASON }
+            viewModel.onSeasonSelect(targetSeason)
             advanceUntilIdle()
 
-            assertEquals(2, repository.advancedSearchCallCount)
-            assertEquals(summerSeason, viewModel.uiState.value.selectedSeason)
-            assertEquals(summerSeason.airDateFilter, repository.lastAdvancedRequest?.filter?.airDate)
+            assertEquals(2, searchRepository.advancedSearchCallCount)
+            assertEquals(targetSeason, viewModel.uiState.value.selectedSeason)
+            assertEquals(targetSeason.airDateFilter, searchRepository.lastAdvancedRequest?.filter?.airDate)
+            assertNull(viewModel.uiState.value.selectedMood)
         }
 
     @Test
     fun onCategorySelectUpdatesTypeAndSearches() =
         runTest {
-            val repository = FakeSearchRepository()
-            repository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = ExploreViewModel(repository)
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            searchRepository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
             advanceUntilIdle()
 
-            viewModel.onCategorySelect(ExploreCategory.GAME)
+            viewModel.onCategorySelect(ExploreCategory.BOOK)
             advanceUntilIdle()
 
-            assertEquals(2, repository.advancedSearchCallCount)
-            assertEquals(ExploreCategory.GAME, viewModel.uiState.value.selectedCategory)
-            assertEquals(listOf(4), repository.lastAdvancedRequest?.filter?.type)
-
-            viewModel.onCategorySelect(ExploreCategory.ALL)
-            advanceUntilIdle()
-
-            assertEquals(3, repository.advancedSearchCallCount)
-            assertEquals(ExploreCategory.ALL, viewModel.uiState.value.selectedCategory)
-            assertNull(repository.lastAdvancedRequest?.filter?.type)
+            assertEquals(2, searchRepository.advancedSearchCallCount)
+            assertEquals(ExploreCategory.BOOK, viewModel.uiState.value.selectedCategory)
+            assertEquals(listOf(1), searchRepository.lastAdvancedRequest?.filter?.type)
+            assertNull(viewModel.uiState.value.selectedMood)
         }
 
     @Test
     fun onTagSelectTogglesTagAndSearches() =
         runTest {
-            val repository = FakeSearchRepository()
-            repository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = ExploreViewModel(repository)
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            searchRepository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
             advanceUntilIdle()
 
+            // 选中标签
             viewModel.onTagSelect("科幻")
             advanceUntilIdle()
 
-            assertEquals(2, repository.advancedSearchCallCount)
+            assertEquals(2, searchRepository.advancedSearchCallCount)
             assertEquals("科幻", viewModel.uiState.value.selectedTag)
-            assertEquals(listOf("科幻"), repository.lastAdvancedRequest?.filter?.tag)
+            assertEquals(listOf("科幻"), searchRepository.lastAdvancedRequest?.filter?.tag)
+            assertNull(viewModel.uiState.value.selectedMood)
 
-            // 再次点击相同标签取消选中
+            // 再次点击取消选中
             viewModel.onTagSelect("科幻")
             advanceUntilIdle()
 
-            assertEquals(3, repository.advancedSearchCallCount)
+            assertEquals(3, searchRepository.advancedSearchCallCount)
             assertNull(viewModel.uiState.value.selectedTag)
-            assertNull(repository.lastAdvancedRequest?.filter?.tag)
+            assertNull(searchRepository.lastAdvancedRequest?.filter?.tag)
         }
 
     @Test
     fun onSortSelectTriggersNewSearchWithUpdatedSortKey() =
         runTest {
-            val repository = FakeSearchRepository()
-            repository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = ExploreViewModel(repository)
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            searchRepository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
             advanceUntilIdle()
 
             viewModel.onSortSelect(ExploreSort.SCORE)
             advanceUntilIdle()
 
-            assertEquals(2, repository.advancedSearchCallCount)
+            assertEquals(2, searchRepository.advancedSearchCallCount)
             assertEquals(ExploreSort.SCORE, viewModel.uiState.value.selectedSort)
-            assertEquals("score", repository.lastAdvancedRequest?.sort)
+            assertEquals("score", searchRepository.lastAdvancedRequest?.sort)
         }
 
     @Test
     fun searchFailureSetsErrorAndRetryRecovers() =
         runTest {
-            val repository = FakeSearchRepository()
-            repository.advancedSearchResult = AppResult.Error(RuntimeException("网络故障"), "探索加载失败")
-            val viewModel = ExploreViewModel(repository)
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            searchRepository.advancedSearchResult = AppResult.Error(RuntimeException("网络故障"), "探索加载失败")
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
@@ -135,7 +243,7 @@ class ExploreViewModelTest {
             assertEquals("探索加载失败", state.error)
 
             // 重试恢复
-            repository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
+            searchRepository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
             viewModel.retry()
             advanceUntilIdle()
 
@@ -147,16 +255,68 @@ class ExploreViewModelTest {
     @Test
     fun refreshSetsRefreshingAndUpdatesSubjects() =
         runTest {
-            val repository = FakeSearchRepository()
-            repository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = ExploreViewModel(repository)
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            searchRepository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
             advanceUntilIdle()
 
             viewModel.refresh()
             advanceUntilIdle()
 
-            assertEquals(2, repository.advancedSearchCallCount)
+            assertEquals(2, searchRepository.advancedSearchCallCount)
             assertFalse(viewModel.uiState.value.isRefreshing)
             assertEquals(1, viewModel.uiState.value.subjects.size)
+        }
+
+    @Test
+    fun loadMoreAppendsNewUniqueSubjects() =
+        runTest {
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            val initialSubjects = (1L..30L).map { sampleSubject.copy(id = it) }
+            val nextSubject = sampleSubject.copy(id = 31L)
+            searchRepository.advancedSearchResult = AppResult.Success(initialSubjects)
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
+            advanceUntilIdle()
+
+            assertEquals(30, viewModel.uiState.value.subjects.size)
+            assertTrue(viewModel.uiState.value.hasMore)
+
+            searchRepository.advancedSearchResult = AppResult.Success(listOf(nextSubject))
+            viewModel.loadMore()
+            advanceUntilIdle()
+
+            assertEquals(2, searchRepository.advancedSearchCallCount)
+            assertEquals(31, viewModel.uiState.value.subjects.size)
+            assertEquals(
+                31L,
+                viewModel.uiState.value.subjects
+                    .last()
+                    .id,
+            )
+            assertFalse(viewModel.uiState.value.isLoadingMore)
+            assertFalse(viewModel.uiState.value.hasMore)
+        }
+
+    @Test
+    fun onCustomTagSubmitUpdatesTagAndTriggersSearch() =
+        runTest {
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            searchRepository.advancedSearchResult = AppResult.Success(listOf(sampleSubject))
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
+            advanceUntilIdle()
+
+            viewModel.onCustomTagSubmit("赛博朋克")
+            advanceUntilIdle()
+
+            assertEquals(2, searchRepository.advancedSearchCallCount)
+            assertEquals("赛博朋克", viewModel.uiState.value.selectedTag)
+            assertEquals(listOf("赛博朋克"), searchRepository.lastAdvancedRequest?.filter?.tag)
+            assertNull(viewModel.uiState.value.selectedMood)
         }
 }

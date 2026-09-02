@@ -9,12 +9,14 @@ import com.infinitezerone.bgmplus.feature.subject.SubjectDetailScreen
 fun EntryProviderScope<NavKey>.subjectEntry(
     onBackClick: () -> Unit,
     onSubjectClick: (Long) -> Unit = {},
+    onTagClick: (String) -> Unit = {},
 ) {
     entry<SubjectDetailRoute> { route ->
         SubjectDetailScreen(
             subjectId = route.subjectId,
             onBackClick = onBackClick,
             onSubjectClick = onSubjectClick,
+            onTagClick = onTagClick,
         )
     }
 }

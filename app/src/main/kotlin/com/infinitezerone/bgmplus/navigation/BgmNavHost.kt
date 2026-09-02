@@ -30,7 +30,7 @@ fun BgmNavHost(
                             navState.navigateTo(SubjectDetailRoute(subjectId))
                         },
                         onSearchClick = {
-                            navState.navigateTo(SearchRoute)
+                            navState.navigateTo(SearchRoute())
                         },
                     )
 
@@ -49,6 +49,9 @@ fun BgmNavHost(
                         onSubjectClick = { subjectId ->
                             navState.navigateTo(SubjectDetailRoute(subjectId))
                         },
+                        onTagClick = { tag ->
+                            navState.navigateTo(SearchRoute(initialQuery = tag))
+                        },
                     )
 
                     searchEntry(
@@ -63,7 +66,7 @@ fun BgmNavHost(
                             navState.navigateTo(SubjectDetailRoute(subjectId))
                         },
                         onSearchClick = {
-                            navState.navigateTo(SearchRoute)
+                            navState.navigateTo(SearchRoute())
                         },
                     )
 

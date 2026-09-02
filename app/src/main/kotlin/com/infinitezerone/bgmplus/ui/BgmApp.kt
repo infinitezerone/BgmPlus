@@ -1,5 +1,6 @@
 package com.infinitezerone.bgmplus.ui
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -51,8 +52,12 @@ fun BgmApp(
                 }
             }
         },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         modifier = modifier.fillMaxSize(),
     ) { innerPadding ->
-        BgmNavHost(navState = navState, modifier = Modifier.padding(innerPadding))
+        BgmNavHost(
+            navState = navState,
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
+        )
     }
 }

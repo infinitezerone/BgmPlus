@@ -10,8 +10,9 @@ fun EntryProviderScope<NavKey>.searchEntry(
     onSubjectClick: (Long) -> Unit,
     onBackClick: (() -> Unit)? = null,
 ) {
-    entry<SearchRoute> {
+    entry<SearchRoute> { route ->
         SearchScreen(
+            initialQuery = route.initialQuery,
             onSubjectClick = onSubjectClick,
             onBackClick = onBackClick,
         )

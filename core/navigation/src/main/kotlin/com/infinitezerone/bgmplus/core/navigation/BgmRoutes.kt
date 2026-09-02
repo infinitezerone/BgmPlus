@@ -20,7 +20,9 @@ data object RakuenRoute : NavKey
 data object UserRoute : NavKey
 
 @Serializable
-data object SearchRoute : NavKey
+data class SearchRoute(
+    val initialQuery: String = "",
+) : NavKey
 
 @Serializable
 data class SubjectDetailRoute(
