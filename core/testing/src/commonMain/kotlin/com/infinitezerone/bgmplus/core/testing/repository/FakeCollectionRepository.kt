@@ -14,6 +14,7 @@ class FakeCollectionRepository : CollectionRepository {
     var fetchUserCollectionsResult: AppResult<List<UserCollection>>? = null
     var fetchUserCollectionsCallCount: Int = 0
         private set
+    var updateCollectionResult: AppResult<Unit>? = null
     var updateCollectionCallCount: Int = 0
         private set
     var updateEpisodeCallCount: Int = 0
@@ -47,6 +48,14 @@ class FakeCollectionRepository : CollectionRepository {
         return AppResult.Success(filtered)
     }
 
+    override suspend fun fetchCollectionCount(
+        username: String,
+        type: CollectionType,
+    ): AppResult<Int> {
+        val count = collectionsState.value.values.count { it.type == type.value }
+        return AppResult.Success(count)
+    }
+
     override suspend fun fetchCollection(subjectId: Long): AppResult<UserCollection?> = AppResult.Success(collectionsState.value[subjectId])
 
     override suspend fun updateCollectionStatus(
@@ -56,17 +65,22 @@ class FakeCollectionRepository : CollectionRepository {
         comment: String?,
         private: Boolean,
         epStatus: Int?,
+        subjectType: Int,
     ): AppResult<Unit> {
         updateCollectionCallCount++
+        updateCollectionResult?.let { return it }
         val current = collectionsState.value[subjectId]
+        val resolvedSubjectType = if (subjectType > 0) subjectType else (current?.subjectType ?: 2)
         val updated =
             current?.copy(
                 type = type.value,
                 rate = rate ?: current.rate,
                 comment = comment ?: current.comment,
                 epStatus = epStatus ?: current.epStatus,
+                subjectType = resolvedSubjectType,
             ) ?: UserCollection(
                 subjectId = subjectId,
+                subjectType = resolvedSubjectType,
                 type = type.value,
                 rate = rate ?: 0,
                 comment = comment.orEmpty(),

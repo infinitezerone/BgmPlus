@@ -14,6 +14,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -35,6 +36,12 @@ interface CollectionRepository : UserDataClearable {
         offset: Int = 0,
     ): AppResult<List<UserCollection>>
 
+    /** 从远端获取指定用户某分类的收藏总数 */
+    suspend fun fetchCollectionCount(
+        username: String,
+        type: CollectionType,
+    ): AppResult<Int>
+
     /** 从远端拉取指定条目的收藏详情并更新本地 Room 缓存 */
     suspend fun fetchCollection(subjectId: Long): AppResult<UserCollection?>
 
@@ -46,6 +53,7 @@ interface CollectionRepository : UserDataClearable {
         comment: String? = null,
         private: Boolean = false,
         epStatus: Int? = null,
+        subjectType: Int = 0,
     ): AppResult<Unit>
 
     /** 更新单集观看进度（看过了 / 撤销） */
@@ -113,6 +121,26 @@ class CollectionRepositoryImpl(
             AppResult.Error(e, "获取用户收藏异常：${e.message}")
         }
 
+    override suspend fun fetchCollectionCount(
+        username: String,
+        type: CollectionType,
+    ): AppResult<Int> =
+        try {
+            val response =
+                apiService.getUserCollections(
+                    username = username,
+                    subjectType = 0,
+                    type = type.value,
+                    limit = 1,
+                    offset = 0,
+                )
+            AppResult.Success(response.total)
+        } catch (e: BgmNetworkException) {
+            AppResult.Error(e, "获取收藏总数失败：${e.message}")
+        } catch (e: Exception) {
+            AppResult.Error(e, "获取收藏总数异常：${e.message}")
+        }
+
     override suspend fun fetchCollection(subjectId: Long): AppResult<UserCollection?> {
         val activeUid = userPreferences.userPreferences.first().activeUserId
         if (activeUid == 0L) return AppResult.Success(null)
@@ -136,6 +164,7 @@ class CollectionRepositoryImpl(
         comment: String?,
         private: Boolean,
         epStatus: Int?,
+        subjectType: Int,
     ): AppResult<Unit> =
         withContext(NonCancellable) {
             val activeUid = userPreferences.userPreferences.first().activeUserId
@@ -150,16 +179,18 @@ class CollectionRepositoryImpl(
                     epStatus = epStatus,
                 )
                 // 写入本地 Room 数据库
+                val existing = userCollectionDao.getCollectionBySubjectId(activeUid, subjectId).firstOrNull()
+                val resolvedSubjectType = if (subjectType > 0) subjectType else (existing?.subjectType ?: 2)
                 userCollectionDao.insertCollection(
                     UserCollectionEntity(
                         userId = activeUid,
                         subjectId = subjectId,
-                        subjectType = 2,
-                        rate = rate ?: 0,
+                        subjectType = resolvedSubjectType,
+                        rate = rate ?: (existing?.rate ?: 0),
                         type = type.value,
-                        comment = comment.orEmpty(),
-                        epStatus = epStatus ?: 0,
-                        volStatus = 0,
+                        comment = comment ?: (existing?.comment.orEmpty()),
+                        epStatus = epStatus ?: (existing?.epStatus ?: 0),
+                        volStatus = existing?.volStatus ?: 0,
                         updatedAt = "",
                     ),
                 )
