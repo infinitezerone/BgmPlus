@@ -39,4 +39,14 @@ class FakeScheduleRepository : ScheduleRepository {
         syncBangumiDataCallCount++
         return syncBangumiDataResult
     }
+
+    /** 测试可预置的默认筛选持久化值 */
+    var scheduleDefaultOnlyWatching: Boolean = false
+        private set
+
+    override suspend fun getScheduleDefaultOnlyWatching(): Boolean = scheduleDefaultOnlyWatching
+
+    override suspend fun setScheduleDefaultOnlyWatching(onlyWatching: Boolean) {
+        scheduleDefaultOnlyWatching = onlyWatching
+    }
 }

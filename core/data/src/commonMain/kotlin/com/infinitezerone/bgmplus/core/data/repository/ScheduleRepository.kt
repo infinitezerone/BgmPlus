@@ -31,6 +31,12 @@ interface ScheduleRepository {
      * 向 CDN 发起 ETag 304 探测；若有更新则批量更新 Room 中动画的播放链接。
      */
     suspend fun syncBangumiData(force: Boolean = false): AppResult<Unit>
+
+    /** 放送时刻表默认筛选：false 为全部，true 为仅展示我追的番 */
+    suspend fun getScheduleDefaultOnlyWatching(): Boolean
+
+    /** 持久化放送时刻表默认筛选 */
+    suspend fun setScheduleDefaultOnlyWatching(onlyWatching: Boolean)
 }
 
 class ScheduleRepositoryImpl(
@@ -169,6 +175,13 @@ class ScheduleRepositoryImpl(
         } catch (e: Throwable) {
             AppResult.Error(e)
         }
+
+    override suspend fun getScheduleDefaultOnlyWatching(): Boolean =
+        userPreferences.userPreferences.firstOrNull()?.scheduleDefaultOnlyWatching ?: false
+
+    override suspend fun setScheduleDefaultOnlyWatching(onlyWatching: Boolean) {
+        userPreferences.setScheduleDefaultOnlyWatching(onlyWatching)
+    }
 
     private fun resolveSiteLink(site: BangumiDataSite): SiteLink? {
         val siteKey = site.site.lowercase()

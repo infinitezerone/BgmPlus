@@ -50,6 +50,7 @@ val dataModule =
         single<SearchRepository> {
             SearchRepositoryImpl(
                 apiService = get<BangumiApiService>(),
+                userPreferences = get<UserPreferencesDataSource>(),
             )
         }
         single {
