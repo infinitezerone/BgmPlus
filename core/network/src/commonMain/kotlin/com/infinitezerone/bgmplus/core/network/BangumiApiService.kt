@@ -146,7 +146,7 @@ class BangumiApiServiceImpl(
                 }.buildString()
         return client
             .get(url) {
-                parameter("type", type)
+                if (type > 0) parameter("type", type)
                 parameter("responseGroup", "medium")
                 parameter("max_results", limit)
                 parameter("start", offset)
