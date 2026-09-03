@@ -4,12 +4,6 @@ import androidx.compose.runtime.Immutable
 import com.infinitezerone.bgmplus.core.model.Subject
 import java.time.LocalDate
 
-/** 探索展示模式：双列安利瀑布流 / 全屏沉浸上下刷 */
-enum class ExploreViewMode {
-    WATERFALL,
-    IMMERSIVE,
-}
-
 /** 季度/年份/年代时间筛选选项 */
 @Immutable
 data class SeasonOption(
@@ -276,7 +270,6 @@ val ALL_TIME_SEASON =
 /** 探索发现界面的单一不可变 UI 状态 */
 @Immutable
 data class ExploreUiState(
-    val viewMode: ExploreViewMode = ExploreViewMode.WATERFALL,
     val selectedSeason: SeasonOption = CURRENT_SEASON,
     val selectedCategory: ExploreCategory = ExploreCategory.ANIME,
     val selectedTag: String? = null,

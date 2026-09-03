@@ -73,10 +73,6 @@ class ExploreViewModel(
         }
     }
 
-    fun onViewModeChange(mode: ExploreViewMode) {
-        _uiState.update { it.copy(viewMode = mode) }
-    }
-
     fun onMoodSelect(mood: ExploreMood) {
         if (_uiState.value.selectedMood == mood) return
         _uiState.update {

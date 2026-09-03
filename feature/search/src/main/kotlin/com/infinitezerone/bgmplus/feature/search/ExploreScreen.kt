@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ExploreOff
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.ViewCarousel
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -63,16 +62,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.feature.search.components.ExploreFilterBottomSheet
-import com.infinitezerone.bgmplus.feature.search.components.ImmersiveFeedView
 import com.infinitezerone.bgmplus.feature.search.components.WaterfallSubjectCard
 import org.koin.androidx.compose.koinViewModel
 
 /**
- * 探索与发现界面：
- * - 沉浸模式：全屏沉浸式卡片上下刷（抖音 / Tinder 风格，无冗余顶部栏，大图铺满，支持下拉刷新与无限滚动）；
- * - 瀑布流模式：双列安利流（小红书 / 小黑盒风格，支持下拉刷新 + 上拉无限分页加载）；
- * - 高级筛选采用 ModalBottomSheet 悬浮抽屉，底层列表平稳不抖动；
- * - 标签采用多行展开自然流动排列，告别单排横划拥挤。
+ * 刷番探索发现界面：
+ * - 纯粹高信息密度的双列瀑布流（小红书 / 小黑盒形态）；
+ * - 支持下拉刷新（Pull-to-Refresh）与触底静默无限加载（Load-More）；
+ * - 高级多维筛选半屏浮层抽屉（ModalBottomSheet），底层列表平稳不抖动；
+ * - 标签采用多行自适应流式排布（FlowRow），支持自定义标签精准过滤与一键清除。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,176 +100,125 @@ fun ExploreScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        if (uiState.viewMode == ExploreViewMode.IMMERSIVE) {
-            // 1. 全屏沉浸模式
-            when {
-                uiState.isLoading && uiState.subjects.isEmpty() -> {
-                    ExploreLoadingState(modifier = Modifier.fillMaxSize())
-                }
-
-                uiState.error != null && uiState.subjects.isEmpty() -> {
-                    ExploreErrorState(
-                        errorMessage = uiState.error ?: "加载探索内容失败",
-                        onRetry = viewModel::retry,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-
-                uiState.subjects.isEmpty() -> {
-                    ExploreEmptyState(
-                        onReset = { viewModel.onMoodSelect(ExploreMood.TRENDING) },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-
-                else -> {
-                    ImmersiveFeedView(
-                        subjects = uiState.subjects,
-                        wishedSubjectIds = uiState.wishedSubjectIds,
-                        selectedMood = uiState.selectedMood,
-                        onMoodSelect = viewModel::onMoodSelect,
-                        onSubjectClick = onSubjectClick,
-                        onToggleWish = viewModel::toggleWish,
-                        onSwitchToWaterfall = { viewModel.onViewModeChange(ExploreViewMode.WATERFALL) },
-                        onSearchClick = onSearchClick,
-                        onLoadMore = viewModel::loadMore,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
-        } else {
-            // 2. 双列瀑布流模式
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = {
-                            Text(
-                                text = "📺 刷番发现",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        },
-                        actions = {
-                            // 切换至全屏沉浸流
-                            IconButton(
-                                onClick = { viewModel.onViewModeChange(ExploreViewMode.IMMERSIVE) },
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "📺 刷番发现",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    },
+                    actions = {
+                        // 展开高级多维筛选抽屉
+                        IconButton(onClick = { showFilterBottomSheet = true }) {
+                            BadgedBox(
+                                badge = {
+                                    if (isFilterActive) {
+                                        Badge(containerColor = MaterialTheme.colorScheme.primary)
+                                    }
+                                },
                             ) {
                                 Icon(
-                                    imageVector = Icons.Outlined.ViewCarousel,
-                                    contentDescription = "切换至全屏沉浸流",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-
-                            // 展开高级多维筛选抽屉
-                            IconButton(onClick = { showFilterBottomSheet = true }) {
-                                BadgedBox(
-                                    badge = {
+                                    imageVector = Icons.Filled.FilterList,
+                                    contentDescription = "高级筛选",
+                                    tint =
                                         if (isFilterActive) {
-                                            Badge(containerColor = MaterialTheme.colorScheme.primary)
-                                        }
-                                    },
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.FilterList,
-                                        contentDescription = "高级筛选",
-                                        tint =
-                                            if (isFilterActive) {
-                                                MaterialTheme.colorScheme.primary
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                            },
-                                    )
-                                }
-                            }
-
-                            // 搜索入口
-                            IconButton(onClick = onSearchClick) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Search,
-                                    contentDescription = "搜索",
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
                                 )
                             }
-                        },
-                        colors =
-                            TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.surface,
-                            ),
-                    )
-                },
-                modifier = Modifier.fillMaxSize(),
-            ) { innerPadding ->
-                Column(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                ) {
-                    // 心境/场景快捷筛选胶囊栏
-                    MoodFilterRow(
-                        selectedMood = uiState.selectedMood,
-                        onMoodSelect = viewModel::onMoodSelect,
+                        }
+
+                        // 搜索入口
+                        IconButton(onClick = onSearchClick) {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = "搜索",
+                            )
+                        }
+                    },
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                )
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) { innerPadding ->
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+            ) {
+                // 心境/场景快捷筛选胶囊栏
+                MoodFilterRow(
+                    selectedMood = uiState.selectedMood,
+                    onMoodSelect = viewModel::onMoodSelect,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // 如果当前激活了非默认筛选条件，显示快捷标签展示与一键清除栏
+                if (isFilterActive) {
+                    ActiveFilterPillRow(
+                        selectedSeason = uiState.selectedSeason,
+                        selectedCategory = uiState.selectedCategory,
+                        selectedTag = uiState.selectedTag,
+                        selectedSort = uiState.selectedSort,
+                        onClearSeason = { viewModel.onSeasonSelect(CURRENT_SEASON) },
+                        onClearCategory = { viewModel.onCategorySelect(ExploreCategory.ANIME) },
+                        onClearTag = { viewModel.onTagSelect(null) },
+                        onClearSort = { viewModel.onSortSelect(ExploreSort.HEAT) },
+                        onResetAll = { viewModel.onMoodSelect(ExploreMood.TRENDING) },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                }
 
-                    // 如果当前激活了非默认筛选条件，显示快捷标签展示与一键清除栏
-                    if (isFilterActive) {
-                        ActiveFilterPillRow(
-                            selectedSeason = uiState.selectedSeason,
-                            selectedCategory = uiState.selectedCategory,
-                            selectedTag = uiState.selectedTag,
-                            selectedSort = uiState.selectedSort,
-                            onClearSeason = { viewModel.onSeasonSelect(CURRENT_SEASON) },
-                            onClearCategory = { viewModel.onCategorySelect(ExploreCategory.ANIME) },
-                            onClearTag = { viewModel.onTagSelect(null) },
-                            onClearSort = { viewModel.onSortSelect(ExploreSort.HEAT) },
-                            onResetAll = { viewModel.onMoodSelect(ExploreMood.TRENDING) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                if (uiState.isLoading && uiState.subjects.isNotEmpty()) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
 
-                    if (uiState.isLoading && uiState.subjects.isNotEmpty()) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
+                // 瀑布流内容（支持下拉刷新与触底分页加载）
+                PullToRefreshBox(
+                    isRefreshing = uiState.isRefreshing,
+                    onRefresh = viewModel::refresh,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    when {
+                        uiState.isLoading && uiState.subjects.isEmpty() -> {
+                            ExploreLoadingState(modifier = Modifier.fillMaxSize())
+                        }
 
-                    // 瀑布流内容（支持下拉刷新与触底分页加载）
-                    PullToRefreshBox(
-                        isRefreshing = uiState.isRefreshing,
-                        onRefresh = viewModel::refresh,
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        when {
-                            uiState.isLoading && uiState.subjects.isEmpty() -> {
-                                ExploreLoadingState(modifier = Modifier.fillMaxSize())
-                            }
+                        uiState.error != null && uiState.subjects.isEmpty() -> {
+                            ExploreErrorState(
+                                errorMessage = uiState.error ?: "加载探索内容失败",
+                                onRetry = viewModel::retry,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
 
-                            uiState.error != null && uiState.subjects.isEmpty() -> {
-                                ExploreErrorState(
-                                    errorMessage = uiState.error ?: "加载探索内容失败",
-                                    onRetry = viewModel::retry,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
+                        uiState.subjects.isEmpty() -> {
+                            ExploreEmptyState(
+                                onReset = { viewModel.onMoodSelect(ExploreMood.TRENDING) },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
 
-                            uiState.subjects.isEmpty() -> {
-                                ExploreEmptyState(
-                                    onReset = { viewModel.onMoodSelect(ExploreMood.TRENDING) },
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
-
-                            else -> {
-                                WaterfallGridList(
-                                    subjects = uiState.subjects,
-                                    wishedSubjectIds = uiState.wishedSubjectIds,
-                                    hasMore = uiState.hasMore,
-                                    isLoadingMore = uiState.isLoadingMore,
-                                    onLoadMore = viewModel::loadMore,
-                                    onSubjectClick = onSubjectClick,
-                                    onToggleWish = viewModel::toggleWish,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
+                        else -> {
+                            WaterfallGridList(
+                                subjects = uiState.subjects,
+                                wishedSubjectIds = uiState.wishedSubjectIds,
+                                hasMore = uiState.hasMore,
+                                isLoadingMore = uiState.isLoadingMore,
+                                onLoadMore = viewModel::loadMore,
+                                onSubjectClick = onSubjectClick,
+                                onToggleWish = viewModel::toggleWish,
+                                modifier = Modifier.fillMaxSize(),
+                            )
                         }
                     }
                 }

@@ -39,31 +39,12 @@ class ExploreViewModelTest {
             assertNull(state.error)
             assertEquals(1, state.subjects.size)
             assertEquals("葬送的芙莉莲", state.subjects.first().nameCn)
-            assertEquals(ExploreViewMode.WATERFALL, state.viewMode)
             assertEquals(ExploreMood.TRENDING, state.selectedMood)
             assertEquals(CURRENT_SEASON, state.selectedSeason)
             assertEquals(ExploreCategory.ANIME, state.selectedCategory)
             assertEquals(ExploreSort.HEAT, state.selectedSort)
             assertNull(state.selectedTag)
             assertTrue(state.isLoggedIn)
-        }
-
-    @Test
-    fun onViewModeChangeUpdatesViewMode() =
-        runTest {
-            val searchRepository = FakeSearchRepository()
-            val collectionRepository = FakeCollectionRepository()
-            val authRepository = FakeAuthRepository()
-            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
-            advanceUntilIdle()
-
-            assertEquals(ExploreViewMode.WATERFALL, viewModel.uiState.value.viewMode)
-
-            viewModel.onViewModeChange(ExploreViewMode.IMMERSIVE)
-            assertEquals(ExploreViewMode.IMMERSIVE, viewModel.uiState.value.viewMode)
-
-            viewModel.onViewModeChange(ExploreViewMode.WATERFALL)
-            assertEquals(ExploreViewMode.WATERFALL, viewModel.uiState.value.viewMode)
         }
 
     @Test
