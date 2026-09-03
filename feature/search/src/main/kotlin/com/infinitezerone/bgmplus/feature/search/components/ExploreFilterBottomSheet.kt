@@ -42,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.infinitezerone.bgmplus.feature.search.DEFAULT_SEASONS
 import com.infinitezerone.bgmplus.feature.search.ExploreCategory
 import com.infinitezerone.bgmplus.feature.search.ExploreSort
@@ -293,7 +292,12 @@ fun ExploreFilterBottomSheet(
                         OutlinedTextField(
                             value = customTagText,
                             onValueChange = { customTagText = it },
-                            placeholder = { Text("输入任意 Bangumi 标签（如 赛博朋克、机娘、芳文社）", fontSize = 12.sp) },
+                            placeholder = {
+                                Text(
+                                    "输入任意 Bangumi 标签（如 赛博朋克、机娘、芳文社）",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions =

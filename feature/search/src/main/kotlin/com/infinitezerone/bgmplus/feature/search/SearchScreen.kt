@@ -93,7 +93,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.infinitezerone.bgmplus.core.designsystem.component.CoverImage
 import com.infinitezerone.bgmplus.core.designsystem.theme.ActionCollect
@@ -598,7 +597,6 @@ private fun SearchIdleView(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    lineHeight = 20.sp,
                 )
             }
         }
@@ -1017,7 +1015,7 @@ private fun SearchResultCard(
                             Text(
                                 text = "Rank #$rank",
                                 style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.5.sp,
+                                fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.85f,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = OnHighlightContainer,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
@@ -1033,7 +1031,7 @@ private fun SearchResultCard(
                         Text(
                             text = "${subjectType.iconEmoji} ${subjectType.label}",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.5.sp,
+                            fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.85f,
                             fontWeight = FontWeight.Bold,
                             color = typeTheme.contentColor,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
@@ -1044,7 +1042,7 @@ private fun SearchResultCard(
                         Text(
                             text = "${subjectType.releaseVerb}: $dateText",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
+                            fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.9f,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -1055,7 +1053,7 @@ private fun SearchResultCard(
                         Text(
                             text = "· $metricText",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
+                            fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.9f,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         )
                     }
@@ -1065,6 +1063,7 @@ private fun SearchResultCard(
                 if (topTags.isNotEmpty()) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
                         modifier = Modifier.padding(top = 1.dp),
                     ) {
                         topTags.forEach { tag ->
@@ -1075,7 +1074,7 @@ private fun SearchResultCard(
                                 Text(
                                     text = "#${tag.name}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 9.5.sp,
+                                    fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.85f,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.5.dp),
                                 )
@@ -1112,7 +1111,7 @@ private fun SearchResultCard(
                             Text(
                                 text = "暂无评分",
                                 style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
+                                fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.9f,
                                 color = MaterialTheme.colorScheme.outline,
                             )
                         }
@@ -1202,7 +1201,7 @@ private fun SearchResultGridCard(
                     ) {
                         Text(
                             text = "#$rank",
-                            fontSize = 9.sp,
+                            fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.82f,
                             fontWeight = FontWeight.ExtraBold,
                             color = OnRatingGold,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
@@ -1218,7 +1217,7 @@ private fun SearchResultGridCard(
                 ) {
                     Text(
                         text = subjectType.iconEmoji,
-                        fontSize = 9.5.sp,
+                        fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.85f,
                         modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp),
                     )
                 }
@@ -1232,7 +1231,7 @@ private fun SearchResultGridCard(
                     ) {
                         Text(
                             text = "★ $score",
-                            fontSize = 9.5.sp,
+                            fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.85f,
                             fontWeight = FontWeight.Bold,
                             color = RatingGoldBright,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
@@ -1275,7 +1274,7 @@ private fun SearchResultGridCard(
                                 "+ ${subjectType.actionDoing}"
                             },
                         style = MaterialTheme.typography.labelSmall,
-                        fontSize = 10.sp,
+                        fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.9f,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         color =
@@ -1327,7 +1326,7 @@ private fun QuickCapsuleButton(
             }
             Text(
                 text = label,
-                fontSize = 10.sp,
+                fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.9f,
                 fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
                 color = if (isActive) activeColor else MaterialTheme.colorScheme.onSurfaceVariant,
             )

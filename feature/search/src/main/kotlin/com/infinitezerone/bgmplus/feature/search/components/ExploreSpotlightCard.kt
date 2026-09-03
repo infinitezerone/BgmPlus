@@ -38,7 +38,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.infinitezerone.bgmplus.core.designsystem.theme.BadgeClassic
 import com.infinitezerone.bgmplus.core.designsystem.theme.RatingGold
@@ -231,7 +230,6 @@ fun ExploreSpotlightCard(
                             fontStyle = FontStyle.Italic,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            lineHeight = 16.sp,
                         )
                     }
 
