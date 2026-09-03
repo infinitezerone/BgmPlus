@@ -11,7 +11,10 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.infinitezerone.bgmplus.core.data.repository.AuthRepository
 import com.infinitezerone.bgmplus.core.navigation.ScheduleRoute
 import com.infinitezerone.bgmplus.core.navigation.TopLevelDestination
 import com.infinitezerone.bgmplus.core.navigation.rememberBgmNavState
@@ -20,8 +23,11 @@ import com.infinitezerone.bgmplus.navigation.BgmNavHost
 @Composable
 fun BgmApp(
     snackbarHostState: SnackbarHostState,
+    authRepository: AuthRepository,
     modifier: Modifier = Modifier,
 ) {
+    val isAuthenticating by authRepository.isAuthenticating.collectAsStateWithLifecycle()
+
     val navState =
         rememberBgmNavState(
             startRoute = ScheduleRoute,
@@ -59,5 +65,9 @@ fun BgmApp(
             navState = navState,
             modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
         )
+
+        if (isAuthenticating) {
+            OAuthProcessingDialog()
+        }
     }
 }

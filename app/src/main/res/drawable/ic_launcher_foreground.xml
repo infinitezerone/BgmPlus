@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-28">
+
+        <!-- 1. 蓝色胶囊：想看 (Wish / 待播) -->
+        <path
+            android:pathData="M36,38 A6,6 0 0 1 42,44 L42,64 A6,6 0 0 1 36,70 A6,6 0 0 1 30,64 L30,44 A6,6 0 0 1 36,38 Z"
+            android:fillColor="#3FA9F5" />
+
+        <!-- 2. 洋红胶囊：在看 (Doing / 核心放送中) -->
+        <path
+            android:pathData="M54,29 A6,6 0 0 1 60,35 L60,73 A6,6 0 0 1 54,79 A6,6 0 0 1 48,73 L48,35 A6,6 0 0 1 54,29 Z"
+            android:fillColor="#FF406E" />
+
+        <!-- 3. 绿色胶囊：看过 (Done / 已归档) -->
+        <path
+            android:pathData="M72,38 A6,6 0 0 1 78,44 L78,64 A6,6 0 0 1 72,70 A6,6 0 0 1 66,64 L66,44 A6,6 0 0 1 72,38 Z"
+            android:fillColor="#2ECC71" />
+
+    </group>
+
+    <!-- 右上角精致评分灵动小星芒 (✦) -->
+    <path
+        android:pathData="M84,22 Q84,25 87,25 Q84,25 84,28 Q84,25 81,25 Q84,25 84,22 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.9" />
+
+</vector>

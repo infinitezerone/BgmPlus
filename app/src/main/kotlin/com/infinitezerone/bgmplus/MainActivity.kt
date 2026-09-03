@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.SnackbarHostState
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.infinitezerone.bgmplus.core.common.onError
 import com.infinitezerone.bgmplus.core.common.onSuccess
@@ -21,12 +22,19 @@ class MainActivity : ComponentActivity() {
     private val snackbarHostState = SnackbarHostState()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
         handleOAuthIntent(intent)
         setContent {
             BgmPlusTheme {
-                BgmApp(snackbarHostState = snackbarHostState)
+                BgmApp(
+                    snackbarHostState = snackbarHostState,
+                    authRepository = authRepository,
+                )
             }
         }
     }
@@ -39,6 +47,14 @@ class MainActivity : ComponentActivity() {
     private fun handleOAuthIntent(intent: Intent?) {
         val data = intent?.data ?: return
         if (data.scheme == "bgmplus" && data.host == "oauth" && data.path == "/callback") {
+            val error = data.getQueryParameter("error")
+            if (error != null) {
+                lifecycleScope.launch {
+                    val message = if (error == "access_denied") "已取消授权登录" else "授权失败：$error"
+                    snackbarHostState.showSnackbar(message)
+                }
+                return
+            }
             val code = data.getQueryParameter("code")
             val state = data.getQueryParameter("state")
             // 深链回调是 app 级事件（不依赖任何页面存活），登录结果经全局 Snackbar 反馈

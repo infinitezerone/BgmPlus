@@ -1,6 +1,13 @@
 package com.infinitezerone.bgmplus
 
 import android.app.Application
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.disk.directory
+import coil3.memory.MemoryCache
+import coil3.request.crossfade
 import com.infinitezerone.bgmplus.core.datastore.UserPreferencesDataSource
 import com.infinitezerone.bgmplus.di.appModule
 import com.infinitezerone.bgmplus.sync.work.initializers.Sync
@@ -16,8 +23,27 @@ import org.koin.androidx.workmanager.koin.workManagerFactory
 import org.koin.core.context.startKoin
 import org.koin.core.logger.Level
 
-class BgmPlusApp : Application() {
+class BgmPlusApp :
+    Application(),
+    SingletonImageLoader.Factory {
     private val appScope = CoroutineScope(Dispatchers.Main.immediate)
+
+    override fun newImageLoader(context: PlatformContext): ImageLoader =
+        ImageLoader
+            .Builder(context)
+            .memoryCache {
+                MemoryCache
+                    .Builder()
+                    .maxSizePercent(context, 0.25)
+                    .build()
+            }.diskCache {
+                DiskCache
+                    .Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(250L * 1024 * 1024) // 250 MB 磁盘缓存
+                    .build()
+            }.crossfade(true)
+            .build()
 
     override fun onCreate() {
         super.onCreate()

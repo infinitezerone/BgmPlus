@@ -1,10 +1,12 @@
 package com.infinitezerone.bgmplus.di
 
 import com.infinitezerone.bgmplus.core.data.repository.AuthRepository
+import com.infinitezerone.bgmplus.core.data.repository.CollectionRepository
 import com.infinitezerone.bgmplus.core.data.repository.ScheduleRepository
 import com.infinitezerone.bgmplus.core.data.repository.SearchRepository
 import com.infinitezerone.bgmplus.core.data.repository.SubjectRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeAuthRepository
+import com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeScheduleRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeSearchRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeSubjectRepository
@@ -38,6 +40,7 @@ class AppModuleTest : KoinTest {
         runTest {
             val fakeAuth = FakeAuthRepository(initialLoggedIn = false)
             val fakeSchedule = FakeScheduleRepository()
+            val fakeCollection = FakeCollectionRepository()
             val fakeUserPrefs =
                 com.infinitezerone.bgmplus.core.testing.datastore
                     .createTestUserPreferencesDataSource()
@@ -49,9 +52,10 @@ class AppModuleTest : KoinTest {
                     module {
                         single<AuthRepository> { fakeAuth }
                         single<ScheduleRepository> { fakeSchedule }
+                        single<CollectionRepository> { fakeCollection }
                         single { fakeUserPrefs }
                         single<com.infinitezerone.bgmplus.core.data.util.SyncManager> { fakeSync }
-                        single { UserViewModel(get(), get(), get(), get()) }
+                        single { UserViewModel(get(), get(), get(), get(), get()) }
                     },
                 )
             }
@@ -94,7 +98,9 @@ class AppModuleTest : KoinTest {
                 modules(
                     module {
                         single<SearchRepository> { fakeSearch }
-                        single { SearchViewModel(get()) }
+                        single<CollectionRepository> { FakeCollectionRepository() }
+                        single<AuthRepository> { FakeAuthRepository() }
+                        single { SearchViewModel(get(), get(), get()) }
                     },
                 )
             }
