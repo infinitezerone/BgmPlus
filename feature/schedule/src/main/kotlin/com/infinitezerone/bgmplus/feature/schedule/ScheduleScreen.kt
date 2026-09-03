@@ -4,13 +4,16 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,8 +34,6 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -52,10 +53,15 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +72,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.infinitezerone.bgmplus.core.designsystem.component.CoverImage
 import com.infinitezerone.bgmplus.core.model.AirSchedule
 import com.infinitezerone.bgmplus.core.model.SiteLink
+import com.infinitezerone.bgmplus.feature.schedule.components.ScheduleSourcesBottomSheet
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import java.time.LocalTime
@@ -80,6 +87,8 @@ fun ScheduleScreen(
     val viewModel: ScheduleViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var selectedScheduleForSources by remember { mutableStateOf<AirSchedule?>(null) }
 
     val pagerState =
         rememberPagerState(
@@ -223,6 +232,7 @@ fun ScheduleScreen(
                                         isWatching = isWatching,
                                         isToday = isToday,
                                         onSubjectClick = onSubjectClick,
+                                        onShowSources = { selectedScheduleForSources = it },
                                     )
                                 }
                             }
@@ -231,6 +241,14 @@ fun ScheduleScreen(
                 }
             }
         }
+    }
+
+    if (selectedScheduleForSources != null) {
+        ScheduleSourcesBottomSheet(
+            schedule = selectedScheduleForSources!!,
+            onDismissRequest = { selectedScheduleForSources = null },
+            onOpenUrl = { url -> openWebUrl(context, url) },
+        )
     }
 }
 
@@ -562,66 +580,70 @@ private fun TimelineScheduleItem(
     isWatching: Boolean,
     isToday: Boolean,
     onSubjectClick: (Long) -> Unit,
+    onShowSources: (AirSchedule) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val time = schedule.timeCst.ifBlank { schedule.timeJst }
     val airStatus = getAirStatus(time, isToday = isToday)
 
     Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        TimelineLeftRail(
+        TimelineTrackRail(
             time = time,
             airStatus = airStatus,
-            modifier = Modifier.width(46.dp),
+            modifier = Modifier.width(58.dp),
         )
 
         ScheduleTimelineCard(
             schedule = schedule,
             isWatching = isWatching,
             onSubjectClick = onSubjectClick,
+            onShowSources = onShowSources,
             modifier = Modifier.weight(1f),
         )
     }
 }
 
 @Composable
-private fun TimelineLeftRail(
+private fun TimelineTrackRail(
     time: String,
     airStatus: AirStatus,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.padding(top = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = time.ifBlank { "全天" },
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color =
-                if (airStatus == AirStatus.AIRING) {
-                    Color(0xFFFF5722)
-                } else if (airStatus == AirStatus.UPCOMING) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-        )
+    val outlineVariant = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
 
-        if (airStatus != AirStatus.NORMAL) {
-            Surface(
-                shape = RoundedCornerShape(4.dp),
+    Row(
+        modifier = modifier.fillMaxHeight(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.End,
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(top = 3.dp),
+        ) {
+            Text(
+                text = time.ifBlank { "全天" },
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
                 color =
                     when (airStatus) {
-                        AirStatus.AIRED -> MaterialTheme.colorScheme.surfaceContainerHigh
                         AirStatus.AIRING -> Color(0xFFFF5722)
-                        AirStatus.UPCOMING -> MaterialTheme.colorScheme.primaryContainer
-                        AirStatus.NORMAL -> Color.Transparent
+                        AirStatus.UPCOMING -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                modifier = Modifier.padding(top = 2.dp),
-            ) {
+            )
+
+            if (airStatus != AirStatus.NORMAL) {
                 Text(
                     text =
                         when (airStatus) {
@@ -631,27 +653,64 @@ private fun TimelineLeftRail(
                             AirStatus.NORMAL -> ""
                         },
                     style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
                     color =
                         when (airStatus) {
-                            AirStatus.AIRED -> MaterialTheme.colorScheme.onSurfaceVariant
-                            AirStatus.AIRING -> Color.White
-                            AirStatus.UPCOMING -> MaterialTheme.colorScheme.onPrimaryContainer
+                            AirStatus.AIRED -> MaterialTheme.colorScheme.outline
+                            AirStatus.AIRING -> Color(0xFFFF5722)
+                            AirStatus.UPCOMING -> MaterialTheme.colorScheme.primary
                             AirStatus.NORMAL -> Color.Transparent
                         },
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp),
                 )
             }
+        }
+
+        Box(
+            modifier =
+                Modifier
+                    .width(14.dp)
+                    .fillMaxHeight()
+                    .drawBehind {
+                        val centerX = size.width / 2
+                        drawLine(
+                            color = outlineVariant,
+                            start = Offset(centerX, 0f),
+                            end = Offset(centerX, size.height),
+                            strokeWidth = 2.dp.toPx(),
+                        )
+                    },
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .padding(top = 7.dp)
+                        .size(
+                            when (airStatus) {
+                                AirStatus.AIRING -> 12.dp
+                                AirStatus.UPCOMING -> 10.dp
+                                else -> 8.dp
+                            },
+                        ).clip(CircleShape)
+                        .background(
+                            when (airStatus) {
+                                AirStatus.AIRING -> Color(0xFFFF5722)
+                                AirStatus.UPCOMING -> MaterialTheme.colorScheme.primary
+                                AirStatus.AIRED -> MaterialTheme.colorScheme.outlineVariant
+                                AirStatus.NORMAL -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            },
+                        ),
+            )
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ScheduleTimelineCard(
     schedule: AirSchedule,
     isWatching: Boolean,
     onSubjectClick: (Long) -> Unit,
+    onShowSources: (AirSchedule) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -667,7 +726,7 @@ private fun ScheduleTimelineCard(
 
     val cardBorder =
         if (isWatching) {
-            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
         } else {
             null
         }
@@ -698,13 +757,13 @@ private fun ScheduleTimelineCard(
 
                 if (schedule.ratingScore > 0.0) {
                     Surface(
-                        color = Color.Black.copy(alpha = 0.7f),
+                        color = Color.Black.copy(alpha = 0.72f),
                         shape = RoundedCornerShape(bottomStart = 8.dp),
                         modifier = Modifier.align(Alignment.TopEnd),
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Star,
@@ -783,7 +842,7 @@ private fun ScheduleTimelineCard(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = 1.dp),
                 ) {
                     if (schedule.nextEpisodeNumber > 0) {
                         Surface(
@@ -809,18 +868,59 @@ private fun ScheduleTimelineCard(
                     }
                 }
 
-                // 播放源平台 Chips（横向滑行，自动去重，保持卡片紧凑整齐）
+                // 播放源固定行（零滚动、零手势冲突、优先常用源）
                 if (schedule.siteLinks.isNotEmpty()) {
-                    val distinctLinks = schedule.siteLinks.distinctBy { it.displayName }
-                    LazyRow(
+                    val sortedLinks = remember(schedule.siteLinks) { sortSiteLinks(schedule.siteLinks) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = 3.dp),
                     ) {
-                        items(distinctLinks, key = { it.playUrl }) { siteLink ->
-                            SiteLinkChip(
-                                siteLink = siteLink,
-                                onClick = { openWebUrl(context, siteLink.playUrl) },
-                            )
+                        sortedLinks.firstOrNull()?.let { topLink ->
+                            Surface(
+                                onClick = { openWebUrl(context, topLink.playUrl) },
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                ) {
+                                    Text(
+                                        text = topLink.displayName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(10.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    )
+                                }
+                            }
+                        }
+
+                        if (sortedLinks.size > 1) {
+                            Surface(
+                                onClick = { onShowSources(schedule) },
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                ) {
+                                    Text(
+                                        text = "+${sortedLinks.size - 1} 更多源 ▾",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -829,37 +929,34 @@ private fun ScheduleTimelineCard(
     }
 }
 
-@Composable
-private fun SiteLinkChip(
-    siteLink: SiteLink,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    AssistChip(
-        onClick = onClick,
-        label = {
-            Text(
-                text = siteLink.displayName,
-                style = MaterialTheme.typography.labelSmall,
-            )
-        },
-        trailingIcon = {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = null,
-                modifier = Modifier.size(11.dp),
-            )
-        },
-        colors =
-            AssistChipDefaults.assistChipColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
-                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                trailingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        border = null,
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier.height(26.dp),
-    )
+private fun sortSiteLinks(links: List<SiteLink>): List<SiteLink> {
+    val priorityOrder =
+        listOf(
+            "bilibili",
+            "gamer",
+            "gamer_hk",
+            "bahamut",
+            "iqiyi",
+            "qq",
+            "youku",
+            "mikan",
+            "muse_tw",
+            "muse_hk",
+            "ani_one",
+            "ani_one_asia",
+            "netflix",
+            "disneyplus",
+            "crunchyroll",
+            "abema",
+            "danime",
+            "unext",
+            "prime",
+            "nicovideo",
+        )
+    return links.distinctBy { it.displayName }.sortedBy { link ->
+        val index = priorityOrder.indexOf(link.siteName.lowercase())
+        if (index >= 0) index else 100
+    }
 }
 
 @Composable
