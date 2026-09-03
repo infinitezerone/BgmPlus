@@ -23,6 +23,10 @@ data class UserPreferences(
     val syncInterval: com.infinitezerone.bgmplus.core.model.SyncInterval = com.infinitezerone.bgmplus.core.model.SyncInterval.WEEKLY,
     /** 上次成功同步 bangumi-data 播放源的时间戳 (毫秒) */
     val bangumiDataLastSyncTimestamp: Long = 0L,
+    /** 放送时刻表默认筛选：false 为全部，true 为仅展示我追的番 */
+    val scheduleDefaultOnlyWatching: Boolean = false,
+    /** 本地最近搜索历史词条列表（按最近使用降序，最多 20 条） */
+    val searchHistory: List<String> = emptyList(),
     // 兼容旧字段
     val userId: Long = 0L,
     val username: String = "",

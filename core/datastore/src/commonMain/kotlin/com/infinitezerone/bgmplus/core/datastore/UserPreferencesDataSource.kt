@@ -130,4 +130,35 @@ class UserPreferencesDataSource(
             current.copy(bangumiDataLastSyncTimestamp = timestamp)
         }
     }
+
+    suspend fun setScheduleDefaultOnlyWatching(onlyWatching: Boolean) {
+        dataStore.updateData { current ->
+            current.copy(scheduleDefaultOnlyWatching = onlyWatching)
+        }
+    }
+
+    /** 添加或更新搜索历史（去重置顶，最多保留 20 条） */
+    suspend fun addSearchHistory(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+        dataStore.updateData { current ->
+            val updated = listOf(trimmed) + (current.searchHistory - trimmed)
+            current.copy(searchHistory = updated.take(20))
+        }
+    }
+
+    /** 移除单条搜索历史 */
+    suspend fun removeSearchHistory(query: String) {
+        val trimmed = query.trim()
+        dataStore.updateData { current ->
+            current.copy(searchHistory = current.searchHistory - trimmed)
+        }
+    }
+
+    /** 清空全部搜索历史 */
+    suspend fun clearSearchHistory() {
+        dataStore.updateData { current ->
+            current.copy(searchHistory = emptyList())
+        }
+    }
 }
