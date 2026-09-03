@@ -88,7 +88,7 @@ fun ExploreScreen(
 
     val isFilterActive =
         uiState.selectedSeason != CURRENT_SEASON ||
-            uiState.selectedTag != null ||
+            uiState.selectedTags.isNotEmpty() ||
             uiState.selectedCategory != ExploreCategory.ANIME ||
             uiState.selectedSort != ExploreSort.HEAT
 
@@ -168,11 +168,11 @@ fun ExploreScreen(
                     ActiveFilterPillRow(
                         selectedSeason = uiState.selectedSeason,
                         selectedCategory = uiState.selectedCategory,
-                        selectedTag = uiState.selectedTag,
+                        selectedTags = uiState.selectedTags,
                         selectedSort = uiState.selectedSort,
                         onClearSeason = { viewModel.onSeasonSelect(CURRENT_SEASON) },
                         onClearCategory = { viewModel.onCategorySelect(ExploreCategory.ANIME) },
-                        onClearTag = { viewModel.onTagSelect(null) },
+                        onTagToggle = viewModel::onTagToggle,
                         onClearSort = { viewModel.onSortSelect(ExploreSort.HEAT) },
                         onResetAll = { viewModel.onMoodSelect(ExploreMood.TRENDING) },
                         modifier = Modifier.fillMaxWidth(),
@@ -213,6 +213,8 @@ fun ExploreScreen(
                             WaterfallGridList(
                                 subjects = uiState.subjects,
                                 wishedSubjectIds = uiState.wishedSubjectIds,
+                                selectedTags = uiState.selectedTags,
+                                onTagClick = viewModel::onTagToggle,
                                 hasMore = uiState.hasMore,
                                 isLoadingMore = uiState.isLoadingMore,
                                 onLoadMore = viewModel::loadMore,
@@ -234,8 +236,9 @@ fun ExploreScreen(
                 onSeasonSelect = viewModel::onSeasonSelect,
                 selectedCategory = uiState.selectedCategory,
                 onCategorySelect = viewModel::onCategorySelect,
-                selectedTag = uiState.selectedTag,
-                onTagSelect = viewModel::onTagSelect,
+                selectedTags = uiState.selectedTags,
+                onTagToggle = viewModel::onTagToggle,
+                onClearAllTags = viewModel::onClearAllTags,
                 onCustomTagSubmit = viewModel::onCustomTagSubmit,
                 selectedSort = uiState.selectedSort,
                 onSortSelect = viewModel::onSortSelect,
@@ -330,11 +333,11 @@ private fun MoodFilterRow(
 private fun ActiveFilterPillRow(
     selectedSeason: SeasonOption,
     selectedCategory: ExploreCategory,
-    selectedTag: String?,
+    selectedTags: Set<String>,
     selectedSort: ExploreSort,
     onClearSeason: () -> Unit,
     onClearCategory: () -> Unit,
-    onClearTag: () -> Unit,
+    onTagToggle: (String) -> Unit,
     onClearSort: () -> Unit,
     onResetAll: () -> Unit,
     modifier: Modifier = Modifier,
@@ -354,11 +357,11 @@ private fun ActiveFilterPillRow(
             }
         }
 
-        if (selectedTag != null) {
-            item {
+        selectedTags.forEach { tag ->
+            item(key = tag) {
                 ActiveFilterChip(
-                    text = "#$selectedTag",
-                    onClear = onClearTag,
+                    text = "#$tag",
+                    onClear = { onTagToggle(tag) },
                 )
             }
         }
@@ -434,6 +437,8 @@ private fun ActiveFilterChip(
 private fun WaterfallGridList(
     subjects: List<Subject>,
     wishedSubjectIds: Set<Long>,
+    selectedTags: Set<String>,
+    onTagClick: (String) -> Unit,
     hasMore: Boolean,
     isLoadingMore: Boolean,
     onLoadMore: () -> Unit,
@@ -474,6 +479,8 @@ private fun WaterfallGridList(
                 ExploreSpotlightCard(
                     subject = featured,
                     isWished = wishedSubjectIds.contains(featured.id),
+                    selectedTags = selectedTags,
+                    onTagClick = onTagClick,
                     onSubjectClick = onSubjectClick,
                     onToggleWish = onToggleWish,
                     modifier = Modifier.padding(bottom = 6.dp),
@@ -487,6 +494,8 @@ private fun WaterfallGridList(
             WaterfallSubjectCard(
                 subject = subject,
                 isWished = wishedSubjectIds.contains(subject.id),
+                selectedTags = selectedTags,
+                onTagClick = onTagClick,
                 onSubjectClick = onSubjectClick,
                 onToggleWish = onToggleWish,
             )

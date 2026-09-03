@@ -43,7 +43,7 @@ class ExploreViewModelTest {
             assertEquals(CURRENT_SEASON, state.selectedSeason)
             assertEquals(ExploreCategory.ANIME, state.selectedCategory)
             assertEquals(ExploreSort.HEAT, state.selectedSort)
-            assertNull(state.selectedTag)
+            assertTrue(state.selectedTags.isEmpty())
             assertTrue(state.isLoggedIn)
         }
 
@@ -61,11 +61,11 @@ class ExploreViewModelTest {
 
             assertEquals(2, searchRepository.advancedSearchCallCount)
             assertEquals(ExploreMood.HEALING, viewModel.uiState.value.selectedMood)
-            assertEquals("治愈", viewModel.uiState.value.selectedTag)
+            assertEquals(setOf("治愈", "日常"), viewModel.uiState.value.selectedTags)
             assertEquals(ExploreSort.SCORE, viewModel.uiState.value.selectedSort)
             assertEquals(ALL_TIME_SEASON, viewModel.uiState.value.selectedSeason)
             assertNull(searchRepository.lastAdvancedRequest?.filter?.airDate)
-            assertEquals(listOf("治愈"), searchRepository.lastAdvancedRequest?.filter?.tag)
+            assertEquals(listOf("治愈", "日常"), searchRepository.lastAdvancedRequest?.filter?.tag)
             assertEquals("score", searchRepository.lastAdvancedRequest?.sort)
         }
 
@@ -163,7 +163,7 @@ class ExploreViewModelTest {
         }
 
     @Test
-    fun onTagSelectTogglesTagAndSearches() =
+    fun onTagToggleTogglesTagAndSearches() =
         runTest {
             val searchRepository = FakeSearchRepository()
             val collectionRepository = FakeCollectionRepository()
@@ -173,20 +173,23 @@ class ExploreViewModelTest {
             advanceUntilIdle()
 
             // 选中标签
-            viewModel.onTagSelect("科幻")
+            viewModel.onTagToggle("科幻")
             advanceUntilIdle()
 
             assertEquals(2, searchRepository.advancedSearchCallCount)
-            assertEquals("科幻", viewModel.uiState.value.selectedTag)
+            assertEquals(setOf("科幻"), viewModel.uiState.value.selectedTags)
             assertEquals(listOf("科幻"), searchRepository.lastAdvancedRequest?.filter?.tag)
             assertNull(viewModel.uiState.value.selectedMood)
 
             // 再次点击取消选中
-            viewModel.onTagSelect("科幻")
+            viewModel.onTagToggle("科幻")
             advanceUntilIdle()
 
             assertEquals(3, searchRepository.advancedSearchCallCount)
-            assertNull(viewModel.uiState.value.selectedTag)
+            assertTrue(
+                viewModel.uiState.value.selectedTags
+                    .isEmpty(),
+            )
             assertNull(searchRepository.lastAdvancedRequest?.filter?.tag)
         }
 
@@ -283,6 +286,43 @@ class ExploreViewModelTest {
         }
 
     @Test
+    fun onTagToggleAllowsMultiTagCombinationAndIntersection() =
+        runTest {
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
+            advanceUntilIdle()
+
+            // 1. 添加标签 "科幻"
+            viewModel.onTagToggle("科幻")
+            advanceUntilIdle()
+            assertEquals(setOf("科幻"), viewModel.uiState.value.selectedTags)
+            assertEquals(listOf("科幻"), searchRepository.lastAdvancedRequest?.filter?.tag)
+
+            // 2. 组合标签 "悬疑"
+            viewModel.onTagToggle("悬疑")
+            advanceUntilIdle()
+            assertEquals(setOf("科幻", "悬疑"), viewModel.uiState.value.selectedTags)
+            assertEquals(listOf("科幻", "悬疑"), searchRepository.lastAdvancedRequest?.filter?.tag)
+
+            // 3. 再次点击 "科幻" 取消勾选
+            viewModel.onTagToggle("科幻")
+            advanceUntilIdle()
+            assertEquals(setOf("悬疑"), viewModel.uiState.value.selectedTags)
+            assertEquals(listOf("悬疑"), searchRepository.lastAdvancedRequest?.filter?.tag)
+
+            // 4. 清空全部标签
+            viewModel.onClearAllTags()
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.selectedTags
+                    .isEmpty(),
+            )
+            assertNull(searchRepository.lastAdvancedRequest?.filter?.tag)
+        }
+
+    @Test
     fun onCustomTagSubmitUpdatesTagAndTriggersSearch() =
         runTest {
             val searchRepository = FakeSearchRepository()
@@ -296,7 +336,7 @@ class ExploreViewModelTest {
             advanceUntilIdle()
 
             assertEquals(2, searchRepository.advancedSearchCallCount)
-            assertEquals("赛博朋克", viewModel.uiState.value.selectedTag)
+            assertEquals(setOf("赛博朋克"), viewModel.uiState.value.selectedTags)
             assertEquals(listOf("赛博朋克"), searchRepository.lastAdvancedRequest?.filter?.tag)
             assertNull(viewModel.uiState.value.selectedMood)
         }

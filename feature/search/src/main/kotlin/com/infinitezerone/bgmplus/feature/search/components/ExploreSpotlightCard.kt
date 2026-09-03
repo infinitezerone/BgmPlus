@@ -55,6 +55,8 @@ fun ExploreSpotlightCard(
     onSubjectClick: (Long) -> Unit,
     onToggleWish: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    selectedTags: Set<String> = emptySet(),
+    onTagClick: (String) -> Unit = {},
 ) {
     val rating = subject.rating
     val score = rating?.score ?: 0.0
@@ -241,14 +243,22 @@ fun ExploreSpotlightCard(
                                 .take(3)
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             highValueTags.forEach { tag ->
+                                val isTagSelected = tag.name in selectedTags
                                 Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = Color.White.copy(alpha = 0.2f),
+                                    onClick = { onTagClick(tag.name) },
+                                    shape = RoundedCornerShape(6.dp),
+                                    color =
+                                        if (isTagSelected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            Color.White.copy(alpha = 0.25f)
+                                        },
                                 ) {
                                     Text(
-                                        text = "#${tag.name}",
+                                        text = (if (isTagSelected) "✓ " else "#") + tag.name,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = Color.White,
+                                        fontWeight = if (isTagSelected) FontWeight.Bold else FontWeight.Normal,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     )
                                 }

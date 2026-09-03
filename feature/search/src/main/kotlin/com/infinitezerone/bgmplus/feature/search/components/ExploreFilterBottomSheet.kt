@@ -52,10 +52,10 @@ import com.infinitezerone.bgmplus.feature.search.TimeCategory
 
 /**
  * 高级多维筛选半屏抽屉（Material 3 ModalBottomSheet）：
- * - 不挤压和移动主界面内容，体验丝滑；
- * - 标签采用多行 FlowRow 自然排布，分类清晰，告别单排横划拥挤；
+ * - 支持多标签自由组合过滤（如 科幻 + 悬疑、京阿尼 + 日常）；
+ * - 标签采用多行 FlowRow 自然排布，分类清晰；
  * - 包含条目分类、播出时间/年代、题材/厂牌/受众三组多维标签矩阵与自定义输入；
- * - 底部提供一键重置与确定筛选。
+ * - 顶部提供已选标签清单与一键清除。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -65,8 +65,9 @@ fun ExploreFilterBottomSheet(
     onSeasonSelect: (SeasonOption) -> Unit,
     selectedCategory: ExploreCategory,
     onCategorySelect: (ExploreCategory) -> Unit,
-    selectedTag: String?,
-    onTagSelect: (String?) -> Unit,
+    selectedTags: Set<String>,
+    onTagToggle: (String) -> Unit,
+    onClearAllTags: () -> Unit,
     onCustomTagSubmit: (String) -> Unit,
     selectedSort: ExploreSort,
     onSortSelect: (ExploreSort) -> Unit,
@@ -100,18 +101,17 @@ fun ExploreFilterBottomSheet(
                     text = "🎯 多维深度筛选",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
 
-                TextButton(
-                    onClick = onResetAll,
-                ) {
+                TextButton(onClick = onResetAll) {
                     Icon(
                         imageVector = Icons.Filled.Refresh,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("重置筛选")
+                    Text("重置筛选", style = MaterialTheme.typography.labelMedium)
                 }
             }
 
@@ -124,78 +124,78 @@ fun ExploreFilterBottomSheet(
                         .fillMaxWidth()
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState())
-                        .padding(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                        .padding(vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                // Section A: 条目大类
-                FilterSection(title = "📂 条目大类") {
+                // Section A: 排序规则
+                FilterSection(title = "↕️ 排序规则") {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        ExploreCategory.entries.forEach { category ->
-                            FilterChip(
-                                selected = selectedCategory == category,
-                                onClick = { onCategorySelect(category) },
-                                label = { Text(text = category.label) },
-                            )
-                        }
-                    }
-                }
-
-                // Section B: 排序规则
-                FilterSection(title = "📊 排序规则") {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         ExploreSort.entries.forEach { sort ->
                             FilterChip(
                                 selected = selectedSort == sort,
                                 onClick = { onSortSelect(sort) },
-                                label = { Text(text = sort.label) },
-                                leadingIcon =
-                                    if (selectedSort == sort) {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.Sort,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(14.dp),
-                                            )
-                                        }
-                                    } else {
-                                        null
-                                    },
+                                label = { Text(text = sort.label, style = MaterialTheme.typography.labelSmall) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Sort,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                },
                             )
                         }
                     }
                 }
 
-                // Section C: 播出时间 / 年代
-                FilterSection(title = "📅 播出时间 / 经典年代") {
-                    // 时间大维度切换（按季度 / 按年份年代 / 全部）
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                // Section B: 媒介分类
+                FilterSection(title = "📁 媒介分类") {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        TimeCategory.entries.forEach { cat ->
+                        ExploreCategory.entries.forEach { category ->
                             FilterChip(
-                                selected = selectedTimeCategory == cat,
-                                onClick = {
-                                    selectedTimeCategory = cat
-                                    if (cat == TimeCategory.ALL) {
-                                        onSeasonSelect(DEFAULT_SEASONS.first { it.category == TimeCategory.ALL })
-                                    }
-                                },
-                                label = { Text(text = cat.label, style = MaterialTheme.typography.labelSmall) },
+                                selected = selectedCategory == category,
+                                onClick = { onCategorySelect(category) },
+                                label = { Text(text = category.label, style = MaterialTheme.typography.labelSmall) },
                             )
                         }
                     }
+                }
 
-                    // 具体时间选项 FlowRow
-                    if (selectedTimeCategory != TimeCategory.ALL) {
+                // Section C: 播出时间与年代范围
+                FilterSection(title = "📅 播出时间与年代") {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // 时间分类切换药丸
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            TimeCategory.entries.forEach { cat ->
+                                val isSelected = selectedTimeCategory == cat
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        selectedTimeCategory = cat
+                                        val firstOfCategory = DEFAULT_SEASONS.firstOrNull { it.category == cat }
+                                        if (firstOfCategory != null) {
+                                            onSeasonSelect(firstOfCategory)
+                                        }
+                                    },
+                                    label = { Text(text = cat.label, style = MaterialTheme.typography.labelSmall) },
+                                    colors =
+                                        FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        ),
+                                )
+                            }
+                        }
+
+                        // 对应分类下的具体时间选项
                         val visibleSeasons = DEFAULT_SEASONS.filter { it.category == selectedTimeCategory }
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -213,7 +213,52 @@ fun ExploreFilterBottomSheet(
                     }
                 }
 
-                // Section D: 标签多维矩阵（多行展开排布）
+                // Section D: 已生效标签总览与快捷清除
+                if (selectedTags.isNotEmpty()) {
+                    FilterSection(
+                        title = "🏷️ 已选组合标签 (${selectedTags.size})",
+                        trailing = {
+                            TextButton(onClick = onClearAllTags) {
+                                Text("清空标签", style = MaterialTheme.typography.labelSmall)
+                            }
+                        },
+                    ) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            selectedTags.forEach { tag ->
+                                Surface(
+                                    onClick = { onTagToggle(tag) },
+                                    shape = MaterialTheme.shapes.small,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Text(
+                                            text = "#$tag",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = "移除",
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(12.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Section E: 标签多维矩阵（支持多选组合）
                 TAG_GROUPS.forEach { group ->
                     FilterSection(title = group.name) {
                         FlowRow(
@@ -222,10 +267,10 @@ fun ExploreFilterBottomSheet(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             group.tags.forEach { tag ->
-                                val isSelected = selectedTag == tag
+                                val isSelected = tag in selectedTags
                                 FilterChip(
                                     selected = isSelected,
-                                    onClick = { onTagSelect(tag) },
+                                    onClick = { onTagToggle(tag) },
                                     label = { Text(text = tag, style = MaterialTheme.typography.labelSmall) },
                                     colors =
                                         FilterChipDefaults.filterChipColors(
@@ -238,94 +283,52 @@ fun ExploreFilterBottomSheet(
                     }
                 }
 
-                // Section E: 自定义标签精准输入
+                // Section F: 自定义标签精准输入
                 FilterSection(title = "➕ 自定义特色标签") {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            OutlinedTextField(
-                                value = customTagText,
-                                onValueChange = { customTagText = it },
-                                placeholder = { Text("输入任意 Bangumi 标签（如 赛博朋克、机娘、偶像）", fontSize = 12.sp) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                                keyboardActions =
-                                    KeyboardActions(
-                                        onDone = {
-                                            if (customTagText.isNotBlank()) {
-                                                onCustomTagSubmit(customTagText)
-                                                customTagText = ""
-                                            }
-                                        },
-                                    ),
-                                modifier = Modifier.weight(1f),
-                            )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        OutlinedTextField(
+                            value = customTagText,
+                            onValueChange = { customTagText = it },
+                            placeholder = { Text("输入任意 Bangumi 标签（如 赛博朋克、机娘、芳文社）", fontSize = 12.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions =
+                                KeyboardActions(
+                                    onDone = {
+                                        if (customTagText.isNotBlank()) {
+                                            onCustomTagSubmit(customTagText)
+                                            customTagText = ""
+                                        }
+                                    },
+                                ),
+                            modifier = Modifier.weight(1f),
+                        )
 
-                            Button(
-                                onClick = {
-                                    if (customTagText.isNotBlank()) {
-                                        onCustomTagSubmit(customTagText)
-                                        customTagText = ""
-                                    }
-                                },
-                                enabled = customTagText.isNotBlank(),
-                            ) {
-                                Text("添加")
-                            }
-                        }
-
-                        // 如果当前选中的是非预设自定义标签，显示高亮芯片
-                        if (selectedTag != null && !TAG_GROUPS.any { g -> g.tags.contains(selectedTag) }) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Text(
-                                    text = "当前自定义生效标签:",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Surface(
-                                    onClick = { onTagSelect(null) },
-                                    shape = MaterialTheme.shapes.small,
-                                    color = MaterialTheme.colorScheme.primary,
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        Text(
-                                            text = "#$selectedTag",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Filled.Close,
-                                            contentDescription = "清除",
-                                            tint = MaterialTheme.colorScheme.onPrimary,
-                                            modifier = Modifier.size(12.dp),
-                                        )
-                                    }
+                        Button(
+                            onClick = {
+                                if (customTagText.isNotBlank()) {
+                                    onCustomTagSubmit(customTagText)
+                                    customTagText = ""
                                 }
-                            }
+                            },
+                            enabled = customTagText.isNotBlank(),
+                        ) {
+                            Text("添加")
                         }
                     }
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-            // 3. 底部确定按钮
+            // 3. 底部完成按钮
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
             ) {
-                Text("完成筛选", fontWeight = FontWeight.Bold)
+                Text("查看发现结果")
             }
         }
     }
@@ -334,16 +337,24 @@ fun ExploreFilterBottomSheet(
 @Composable
 private fun FilterSection(
     title: String,
+    trailing: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            trailing?.invoke()
+        }
         content()
     }
 }

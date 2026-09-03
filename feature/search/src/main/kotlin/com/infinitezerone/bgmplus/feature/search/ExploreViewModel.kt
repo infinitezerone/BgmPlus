@@ -83,7 +83,7 @@ class ExploreViewModel(
                 }
             it.copy(
                 selectedMood = mood,
-                selectedTag = mood.tag,
+                selectedTags = mood.tags.toSet(),
                 selectedSort = mood.sort,
                 selectedSeason = season,
             )
@@ -156,12 +156,23 @@ class ExploreViewModel(
         loadDiscovery()
     }
 
-    fun onTagSelect(tag: String?) {
-        val newTag = if (_uiState.value.selectedTag == tag) null else tag
+    fun onTagToggle(tag: String) {
         _uiState.update {
-            val season = if (newTag != null && it.selectedSeason == CURRENT_SEASON) ALL_TIME_SEASON else it.selectedSeason
-            it.copy(selectedTag = newTag, selectedSeason = season, selectedMood = null)
+            val newTags =
+                if (tag in it.selectedTags) {
+                    it.selectedTags - tag
+                } else {
+                    it.selectedTags + tag
+                }
+            val season = if (newTags.isNotEmpty() && it.selectedSeason == CURRENT_SEASON) ALL_TIME_SEASON else it.selectedSeason
+            it.copy(selectedTags = newTags, selectedSeason = season, selectedMood = null)
         }
+        loadDiscovery()
+    }
+
+    fun onClearAllTags() {
+        if (_uiState.value.selectedTags.isEmpty()) return
+        _uiState.update { it.copy(selectedTags = emptySet(), selectedMood = null) }
         loadDiscovery()
     }
 
@@ -169,8 +180,9 @@ class ExploreViewModel(
         val trimmed = customTag.trim()
         if (trimmed.isBlank()) return
         _uiState.update {
+            val newTags = it.selectedTags + trimmed
             val season = if (it.selectedSeason == CURRENT_SEASON) ALL_TIME_SEASON else it.selectedSeason
-            it.copy(selectedTag = trimmed, selectedSeason = season, selectedMood = null)
+            it.copy(selectedTags = newTags, selectedSeason = season, selectedMood = null)
         }
         loadDiscovery()
     }
@@ -203,7 +215,7 @@ class ExploreViewModel(
                 val filter =
                     SearchFilter(
                         type = currentState.selectedCategory.type?.let { listOf(it) },
-                        tag = currentState.selectedTag?.let { listOf(it) },
+                        tag = currentState.selectedTags.toList().ifEmpty { null },
                         airDate = currentState.selectedSeason.airDateFilter,
                         nsfw = false,
                     )
@@ -267,7 +279,7 @@ class ExploreViewModel(
                 val filter =
                     SearchFilter(
                         type = currentState.selectedCategory.type?.let { listOf(it) },
-                        tag = currentState.selectedTag?.let { listOf(it) },
+                        tag = currentState.selectedTags.toList().ifEmpty { null },
                         airDate = currentState.selectedSeason.airDateFilter,
                         nsfw = false,
                     )

@@ -57,6 +57,8 @@ fun WaterfallSubjectCard(
     onSubjectClick: (Long) -> Unit,
     onToggleWish: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    selectedTags: Set<String> = emptySet(),
+    onTagClick: (String) -> Unit = {},
 ) {
     val primaryTitle = subject.displayName
     val rating = subject.rating
@@ -217,16 +219,29 @@ fun WaterfallSubjectCard(
                         maxLines = 1,
                     ) {
                         flavorfulTags.forEach { tag ->
+                            val isTagSelected = tag.name in selectedTags
                             Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                                onClick = { onTagClick(tag.name) },
+                                shape = RoundedCornerShape(6.dp),
+                                color =
+                                    if (isTagSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                                    },
                             ) {
                                 Text(
-                                    text = tag.name,
+                                    text = (if (isTagSelected) "✓ " else "#") + tag.name,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                    color =
+                                        if (isTagSelected) {
+                                            MaterialTheme.colorScheme.onPrimary
+                                        } else {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        },
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     fontSize = 11.sp,
+                                    fontWeight = if (isTagSelected) FontWeight.Bold else FontWeight.Normal,
                                 )
                             }
                         }

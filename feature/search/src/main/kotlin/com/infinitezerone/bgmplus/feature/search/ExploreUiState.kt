@@ -46,18 +46,18 @@ enum class ExploreSort(
 /** 心境/场景预设筛选（小红书/盲盒安利流） */
 enum class ExploreMood(
     val label: String,
-    val tag: String?,
+    val tags: List<String> = emptyList(),
     val sort: ExploreSort,
 ) {
-    TRENDING("🔥 当季爆款", null, ExploreSort.HEAT),
-    MASTERPIECE("💎 封神必看", null, ExploreSort.SCORE),
-    HEALING("🌿 深夜解压", "治愈", ExploreSort.SCORE),
-    SHONEN("⚔️ 热血高燃", "热血", ExploreSort.HEAT),
-    SUSPENSE("🧠 烧脑悬疑", "悬疑", ExploreSort.SCORE),
-    TEARS("💧 催泪后劲", "催泪", ExploreSort.SCORE),
-    ROMANCE("🌸 纯爱心动", "恋爱", ExploreSort.SCORE),
-    FANTASY("🔮 异界奇幻", "奇幻", ExploreSort.HEAT),
-    BLIND_BOX("🎲 随心盲盒", null, ExploreSort.RANK),
+    TRENDING("🔥 当季爆款", emptyList(), ExploreSort.HEAT),
+    MASTERPIECE("💎 封神必看", emptyList(), ExploreSort.SCORE),
+    HEALING("🌿 深夜解压", listOf("治愈", "日常"), ExploreSort.SCORE),
+    SHONEN("⚔️ 热血高燃", listOf("热血", "战斗"), ExploreSort.HEAT),
+    SUSPENSE("🧠 烧脑悬疑", listOf("悬疑", "推理"), ExploreSort.SCORE),
+    TEARS("💧 催泪后劲", listOf("催泪", "感动"), ExploreSort.SCORE),
+    ROMANCE("🌸 纯爱心动", listOf("恋爱", "纯爱"), ExploreSort.SCORE),
+    FANTASY("🔮 异界奇幻", listOf("奇幻", "冒险"), ExploreSort.HEAT),
+    BLIND_BOX("🎲 随心盲盒", emptyList(), ExploreSort.RANK),
 }
 
 private data class SeasonMeta(
@@ -274,7 +274,7 @@ val ALL_TIME_SEASON =
 data class ExploreUiState(
     val selectedSeason: SeasonOption = CURRENT_SEASON,
     val selectedCategory: ExploreCategory = ExploreCategory.ANIME,
-    val selectedTag: String? = null,
+    val selectedTags: Set<String> = emptySet(),
     val customTagInput: String = "",
     val selectedSort: ExploreSort = ExploreSort.HEAT,
     val selectedMood: ExploreMood? = ExploreMood.TRENDING,
