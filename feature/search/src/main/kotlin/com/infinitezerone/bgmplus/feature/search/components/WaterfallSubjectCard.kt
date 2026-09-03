@@ -40,6 +40,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.infinitezerone.bgmplus.core.designsystem.component.CoverImage
+import com.infinitezerone.bgmplus.core.designsystem.theme.BadgeClassic
+import com.infinitezerone.bgmplus.core.designsystem.theme.RatingGold
+import com.infinitezerone.bgmplus.core.designsystem.theme.StatusAiring
 import com.infinitezerone.bgmplus.core.model.Subject
 
 /**
@@ -94,7 +97,7 @@ fun WaterfallSubjectCard(
     Card(
         onClick = { onSubjectClick(subject.id) },
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(10.dp),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -112,7 +115,7 @@ fun WaterfallSubjectCard(
                 CoverImage(
                     url = subject.images?.bestImage.orEmpty(),
                     contentDescription = primaryTitle,
-                    cornerRadius = 16.dp,
+                    cornerRadius = 10.dp,
                     aspectRatio = 0.72f,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -138,7 +141,7 @@ fun WaterfallSubjectCard(
                                 Icon(
                                     imageVector = Icons.Filled.Star,
                                     contentDescription = null,
-                                    tint = Color(0xFFFFB800),
+                                    tint = RatingGold,
                                     modifier = Modifier.size(11.dp),
                                 )
                                 Text(
@@ -157,7 +160,7 @@ fun WaterfallSubjectCard(
                     if (isRecent && doingCount > 50) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFFF5722).copy(alpha = 0.88f),
+                            color = StatusAiring.copy(alpha = 0.88f),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
@@ -181,7 +184,7 @@ fun WaterfallSubjectCard(
                     } else if (ratingTotal > 0) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF3F51B5).copy(alpha = 0.85f),
+                            color = BadgeClassic.copy(alpha = 0.85f),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
@@ -349,7 +352,7 @@ private fun WishButton(
 
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         color = containerColor,
         modifier = modifier.scale(scale),
     ) {

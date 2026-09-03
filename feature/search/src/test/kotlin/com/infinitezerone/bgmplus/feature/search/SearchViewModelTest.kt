@@ -1,7 +1,13 @@
 package com.infinitezerone.bgmplus.feature.search
 
 import com.infinitezerone.bgmplus.core.common.AppResult
+import com.infinitezerone.bgmplus.core.model.CollectionType
+import com.infinitezerone.bgmplus.core.model.Rating
+import com.infinitezerone.bgmplus.core.model.SearchResult
+import com.infinitezerone.bgmplus.core.model.SubjectType
 import com.infinitezerone.bgmplus.core.testing.data.sampleSubject
+import com.infinitezerone.bgmplus.core.testing.repository.FakeAuthRepository
+import com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeSearchRepository
 import com.infinitezerone.bgmplus.core.testing.util.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,35 +26,44 @@ class SearchViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    private fun createViewModel(
+        searchRepo: FakeSearchRepository = FakeSearchRepository(),
+        collectionRepo: FakeCollectionRepository = FakeCollectionRepository(),
+        authRepo: FakeAuthRepository = FakeAuthRepository(initialLoggedIn = true),
+    ) = SearchViewModel(searchRepo, collectionRepo, authRepo)
+
     @Test
     fun initialStateIsEmptyAndNotLoading() {
-        val repository = FakeSearchRepository()
-        val viewModel = SearchViewModel(repository)
+        val searchRepo = FakeSearchRepository()
+        val viewModel = createViewModel(searchRepo = searchRepo)
 
         val state = viewModel.uiState.value
         assertEquals("", state.query)
         assertEquals(0, state.selectedType)
+        assertEquals(SearchSort.MATCH, state.selectedSort)
+        assertEquals(SearchViewMode.LIST, state.viewMode)
         assertFalse(state.isLoading)
+        assertFalse(state.isLoadingMore)
+        assertFalse(state.hasMore)
+        assertEquals(0, state.totalCount)
         assertTrue(state.results.isEmpty())
         assertNull(state.error)
-        assertEquals(0, repository.searchCallCount)
+        assertEquals(0, searchRepo.searchCallCount)
     }
 
     @Test
     fun onQueryChangeTriggersDebouncedSearch() =
         runTest {
             val repository = FakeSearchRepository()
-            repository.searchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = SearchViewModel(repository)
+            repository.searchResult = AppResult.Success(SearchResult(total = 1, list = listOf(sampleSubject)))
+            val viewModel = createViewModel(searchRepo = repository)
 
             viewModel.onQueryChange("芙莉莲")
 
             assertEquals("芙莉莲", viewModel.uiState.value.query)
-            // 200ms 未满防抖阈值 (300ms) 时，不应触发搜索
             advanceTimeBy(200)
             assertEquals(0, repository.searchCallCount)
 
-            // 推进到达防抖时间后触发搜索
             advanceTimeBy(150)
             advanceUntilIdle()
 
@@ -56,6 +71,8 @@ class SearchViewModelTest {
             val state = viewModel.uiState.value
             assertFalse(state.isLoading)
             assertEquals(1, state.results.size)
+            assertEquals(1, state.totalCount)
+            assertFalse(state.hasMore)
             assertEquals("葬送的芙莉莲", state.results.first().nameCn)
             assertNull(state.error)
         }
@@ -64,8 +81,8 @@ class SearchViewModelTest {
     fun onQueryChangeWithBlankResetsResultsAndDoesNotSearch() =
         runTest {
             val repository = FakeSearchRepository()
-            repository.searchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = SearchViewModel(repository)
+            repository.searchResult = AppResult.Success(SearchResult(total = 1, list = listOf(sampleSubject)))
+            val viewModel = createViewModel(searchRepo = repository)
 
             viewModel.onQueryChange("芙莉莲")
             advanceUntilIdle()
@@ -78,9 +95,10 @@ class SearchViewModelTest {
             val state = viewModel.uiState.value
             assertEquals("   ", state.query)
             assertTrue(state.results.isEmpty())
+            assertEquals(0, state.totalCount)
+            assertFalse(state.hasMore)
             assertFalse(state.isLoading)
             assertNull(state.error)
-            // 空白输入不应再次发起网络搜索
             assertEquals(1, repository.searchCallCount)
         }
 
@@ -88,14 +106,13 @@ class SearchViewModelTest {
     fun onTypeSelectSwitchesTypeAndSearchesWhenQueryPresent() =
         runTest {
             val repository = FakeSearchRepository()
-            repository.searchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = SearchViewModel(repository)
+            repository.searchResult = AppResult.Success(SearchResult(total = 1, list = listOf(sampleSubject)))
+            val viewModel = createViewModel(searchRepo = repository)
 
             viewModel.onQueryChange("芙莉莲")
             advanceUntilIdle()
             assertEquals(1, repository.searchCallCount)
 
-            // 切换为动画分类 (2)
             viewModel.onTypeSelect(2)
             advanceUntilIdle()
 
@@ -107,7 +124,7 @@ class SearchViewModelTest {
     fun onTypeSelectDoesNotSearchWhenQueryBlank() =
         runTest {
             val repository = FakeSearchRepository()
-            val viewModel = SearchViewModel(repository)
+            val viewModel = createViewModel(searchRepo = repository)
 
             viewModel.onTypeSelect(2)
             advanceUntilIdle()
@@ -120,11 +137,10 @@ class SearchViewModelTest {
     fun searchTriggersImmediateSearchWithoutDebounce() =
         runTest {
             val repository = FakeSearchRepository()
-            repository.searchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = SearchViewModel(repository)
+            repository.searchResult = AppResult.Success(SearchResult(total = 1, list = listOf(sampleSubject)))
+            val viewModel = createViewModel(searchRepo = repository)
 
             viewModel.onQueryChange("EVA")
-            // 立即按回车/触发 search()
             viewModel.search()
             advanceUntilIdle()
 
@@ -136,8 +152,8 @@ class SearchViewModelTest {
     fun clearQueryClearsAllState() =
         runTest {
             val repository = FakeSearchRepository()
-            repository.searchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = SearchViewModel(repository)
+            repository.searchResult = AppResult.Success(SearchResult(total = 1, list = listOf(sampleSubject)))
+            val viewModel = createViewModel(searchRepo = repository)
 
             viewModel.onQueryChange("芙莉莲")
             advanceUntilIdle()
@@ -148,6 +164,8 @@ class SearchViewModelTest {
             val state = viewModel.uiState.value
             assertEquals("", state.query)
             assertTrue(state.results.isEmpty())
+            assertEquals(0, state.totalCount)
+            assertFalse(state.hasMore)
             assertFalse(state.isLoading)
             assertNull(state.error)
         }
@@ -157,7 +175,7 @@ class SearchViewModelTest {
         runTest {
             val repository = FakeSearchRepository()
             repository.searchResult = AppResult.Error(RuntimeException("网络连接失败"), "搜索请求失败")
-            val viewModel = SearchViewModel(repository)
+            val viewModel = createViewModel(searchRepo = repository)
 
             viewModel.onQueryChange("测试")
             advanceUntilIdle()
@@ -173,13 +191,13 @@ class SearchViewModelTest {
         runTest {
             val repository = FakeSearchRepository()
             repository.searchResult = AppResult.Error(RuntimeException("网络连接失败"), "搜索请求失败")
-            val viewModel = SearchViewModel(repository)
+            val viewModel = createViewModel(searchRepo = repository)
 
             viewModel.onQueryChange("测试")
             advanceUntilIdle()
             assertEquals("搜索请求失败", viewModel.uiState.value.error)
 
-            repository.searchResult = AppResult.Success(listOf(sampleSubject))
+            repository.searchResult = AppResult.Success(SearchResult(total = 1, list = listOf(sampleSubject)))
             viewModel.search()
             advanceUntilIdle()
 
@@ -192,8 +210,8 @@ class SearchViewModelTest {
     fun rapidQueryChangesOnlyExecutesLatestQuery() =
         runTest {
             val repository = FakeSearchRepository()
-            repository.searchResult = AppResult.Success(listOf(sampleSubject))
-            val viewModel = SearchViewModel(repository)
+            repository.searchResult = AppResult.Success(SearchResult(total = 1, list = listOf(sampleSubject)))
+            val viewModel = createViewModel(searchRepo = repository)
 
             viewModel.onQueryChange("a")
             advanceTimeBy(100)
@@ -208,5 +226,194 @@ class SearchViewModelTest {
 
             assertEquals(1, repository.searchCallCount)
             assertEquals("abc", viewModel.uiState.value.query)
+        }
+
+    @Test
+    fun searchPopulatesTotalCountAndHasMore() =
+        runTest {
+            val repository = FakeSearchRepository()
+            repository.searchResult =
+                AppResult.Success(
+                    SearchResult(
+                        total = 43,
+                        list = List(22) { sampleSubject.copy(id = 1000L + it) },
+                    ),
+                )
+            val viewModel = createViewModel(searchRepo = repository)
+
+            viewModel.onQueryChange("鬼灭之刃")
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(22, state.results.size)
+            assertEquals(43, state.totalCount)
+            assertTrue(state.hasMore)
+            assertFalse(state.isLoadingMore)
+        }
+
+    @Test
+    fun loadMoreAppendsRemainingItemsAndCompletes() =
+        runTest {
+            val repository = FakeSearchRepository()
+            val firstBatch = List(22) { sampleSubject.copy(id = 1000L + it) }
+            repository.searchResult =
+                AppResult.Success(
+                    SearchResult(
+                        total = 43,
+                        list = firstBatch,
+                    ),
+                )
+            val viewModel = createViewModel(searchRepo = repository)
+
+            viewModel.onQueryChange("鬼灭之刃")
+            advanceUntilIdle()
+            assertEquals(22, viewModel.uiState.value.results.size)
+
+            val secondBatch = List(21) { sampleSubject.copy(id = 2000L + it) }
+            repository.searchResult =
+                AppResult.Success(
+                    SearchResult(
+                        total = 43,
+                        list = secondBatch,
+                    ),
+                )
+
+            viewModel.loadMore()
+            advanceUntilIdle()
+
+            val updatedState = viewModel.uiState.value
+            assertEquals(43, updatedState.results.size)
+            assertEquals(43, updatedState.totalCount)
+            assertFalse(updatedState.hasMore)
+            assertFalse(updatedState.isLoadingMore)
+        }
+
+    @Test
+    fun onSortChangeSortsByScoreAndRank() =
+        runTest {
+            val repository = FakeSearchRepository()
+            val item1 = sampleSubject.copy(id = 1L, rating = Rating(score = 7.5, rank = 100))
+            val item2 = sampleSubject.copy(id = 2L, rating = Rating(score = 9.2, rank = 2))
+            val item3 = sampleSubject.copy(id = 3L, rating = Rating(score = 8.1, rank = 20))
+
+            repository.searchResult = AppResult.Success(SearchResult(total = 3, list = listOf(item1, item2, item3)))
+            val viewModel = createViewModel(searchRepo = repository)
+
+            viewModel.onQueryChange("测试")
+            advanceUntilIdle()
+
+            // 切换为高分优先，验证即时排序及服务端参数传递
+            viewModel.onSortChange(SearchSort.SCORE)
+            advanceUntilIdle()
+            assertEquals("score", repository.lastSort)
+            val scoreSorted = viewModel.uiState.value.results
+            assertEquals(2L, scoreSorted[0].id) // 9.2
+            assertEquals(3L, scoreSorted[1].id) // 8.1
+            assertEquals(1L, scoreSorted[2].id) // 7.5
+
+            // 切换为排名靠前，验证即时排序及服务端参数传递
+            viewModel.onSortChange(SearchSort.RANK)
+            advanceUntilIdle()
+            assertEquals("rank", repository.lastSort)
+            val rankSorted = viewModel.uiState.value.results
+            assertEquals(2L, rankSorted[0].id) // rank 2
+            assertEquals(3L, rankSorted[1].id) // rank 20
+            assertEquals(1L, rankSorted[2].id) // rank 100
+
+            // 切换为热门收藏
+            viewModel.onSortChange(SearchSort.HEAT)
+            advanceUntilIdle()
+            assertEquals("heat", repository.lastSort)
+        }
+
+    @Test
+    fun onViewModeToggleSwitchesBetweenListAndGrid() {
+        val viewModel = createViewModel()
+        assertEquals(SearchViewMode.LIST, viewModel.uiState.value.viewMode)
+
+        viewModel.onViewModeToggle()
+        assertEquals(SearchViewMode.GRID, viewModel.uiState.value.viewMode)
+
+        viewModel.onViewModeToggle()
+        assertEquals(SearchViewMode.LIST, viewModel.uiState.value.viewMode)
+    }
+
+    @Test
+    fun toggleCollectionWhenNotLoggedInShowsDialog() =
+        runTest {
+            val authRepo = FakeAuthRepository(initialLoggedIn = false)
+            val viewModel = createViewModel(authRepo = authRepo)
+
+            viewModel.toggleCollection(sampleSubject, CollectionType.DOING)
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.showLoginPromptDialog)
+        }
+
+    @Test
+    fun toggleCollectionWhenLoggedInOptimisticallyUpdatesAndAdaptsVerbs() =
+        runTest {
+            val authRepo = FakeAuthRepository(initialLoggedIn = true)
+            val collectionRepo = FakeCollectionRepository()
+            val viewModel = createViewModel(collectionRepo = collectionRepo, authRepo = authRepo)
+
+            // 书籍条目 (type = 1)
+            val bookSubject = sampleSubject.copy(id = 888L, type = SubjectType.BOOK.value)
+
+            viewModel.toggleCollection(bookSubject, CollectionType.DOING)
+            advanceUntilIdle()
+
+            // 验证 0ms 乐观更新成功
+            assertEquals(CollectionType.DOING, viewModel.uiState.value.userCollections[888L])
+            // 验证动词为书籍对应的“在读”
+            assertEquals("已标记为「在读」", viewModel.uiState.value.userMessage)
+        }
+
+    @Test
+    fun searchHistoryIsLoadedAndUpdatedOnSearch() =
+        runTest {
+            val repository = FakeSearchRepository()
+            repository.setInitialHistory(listOf("命运石之门"))
+            val viewModel = createViewModel(searchRepo = repository)
+            advanceUntilIdle()
+
+            assertEquals(listOf("命运石之门"), viewModel.uiState.value.searchHistory)
+
+            viewModel.onQueryChange("芙莉莲")
+            advanceTimeBy(350)
+            advanceUntilIdle()
+
+            assertTrue(
+                viewModel.uiState.value.searchHistory
+                    .contains("芙莉莲"),
+            )
+            assertEquals(
+                "芙莉莲",
+                viewModel.uiState.value.searchHistory
+                    .first(),
+            )
+            assertEquals(1, repository.addHistoryCallCount)
+        }
+
+    @Test
+    fun deleteHistoryItemAndClearAllHistoryWorks() =
+        runTest {
+            val repository = FakeSearchRepository()
+            repository.setInitialHistory(listOf("EVA", "电锯人", "芙莉莲"))
+            val viewModel = createViewModel(searchRepo = repository)
+            advanceUntilIdle()
+
+            assertEquals(3, viewModel.uiState.value.searchHistory.size)
+
+            viewModel.deleteHistoryItem("电锯人")
+            advanceUntilIdle()
+            assertEquals(listOf("EVA", "芙莉莲"), viewModel.uiState.value.searchHistory)
+
+            viewModel.clearAllHistory()
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.searchHistory
+                    .isEmpty(),
+            )
         }
 }

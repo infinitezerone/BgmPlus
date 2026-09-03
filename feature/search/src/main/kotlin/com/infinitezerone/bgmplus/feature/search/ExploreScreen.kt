@@ -106,7 +106,7 @@ fun ExploreScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text = "📺 刷番发现",
+                            text = "探索发现",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                         )
@@ -407,7 +407,7 @@ private fun ActiveFilterChip(
 ) {
     Surface(
         onClick = onClear,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
         modifier = modifier,
     ) {

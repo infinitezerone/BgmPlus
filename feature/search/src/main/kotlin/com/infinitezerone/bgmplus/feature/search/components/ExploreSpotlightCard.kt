@@ -40,6 +40,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.infinitezerone.bgmplus.core.designsystem.theme.BadgeClassic
+import com.infinitezerone.bgmplus.core.designsystem.theme.RatingGold
+import com.infinitezerone.bgmplus.core.designsystem.theme.StatusAiring
 import com.infinitezerone.bgmplus.core.model.Subject
 
 /**
@@ -77,11 +80,11 @@ fun ExploreSpotlightCard(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .clickable { onSubjectClick(subject.id) },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Box(
             modifier =
@@ -141,7 +144,7 @@ fun ExploreSpotlightCard(
                                 Icon(
                                     imageVector = Icons.Filled.Star,
                                     contentDescription = null,
-                                    tint = Color(0xFFFFB800),
+                                    tint = RatingGold,
                                     modifier = Modifier.size(12.dp),
                                 )
                                 Text(
@@ -160,7 +163,7 @@ fun ExploreSpotlightCard(
                     if (isRecent && doingCount > 50) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFFF5722).copy(alpha = 0.88f),
+                            color = StatusAiring.copy(alpha = 0.88f),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
@@ -184,7 +187,7 @@ fun ExploreSpotlightCard(
                     } else if (ratingTotal > 0) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF3F51B5).copy(alpha = 0.88f),
+                            color = BadgeClassic.copy(alpha = 0.88f),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
