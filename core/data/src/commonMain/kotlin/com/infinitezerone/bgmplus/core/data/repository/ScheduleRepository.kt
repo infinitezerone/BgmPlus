@@ -68,6 +68,9 @@ class ScheduleRepositoryImpl(
                     val coverUrl =
                         (subject.images?.bestImage ?: "").replace("http://", "https://")
                     val titleCn = subject.nameCn.ifBlank { existing?.titleCn ?: "" }
+                    val beginUtc =
+                        existing?.beginUtc.takeIf { !it.isNullOrBlank() }
+                            ?: subject.airDate
 
                     entities.add(
                         AirScheduleEntity(
@@ -76,7 +79,7 @@ class ScheduleRepositoryImpl(
                             titleCn = titleCn,
                             coverUrl = coverUrl,
                             ratingScore = subject.rating?.score ?: 0.0,
-                            beginUtc = existing?.beginUtc ?: "",
+                            beginUtc = beginUtc,
                             weekday = officialWeekday,
                             timeCst = existing?.timeCst ?: "",
                             timeJst = existing?.timeJst ?: "",
@@ -221,6 +224,8 @@ class ScheduleRepositoryImpl(
                 emptyList()
             }
 
+        val calculatedEp = TimeUtils.calculateCurrentEpisode(beginUtc)
+
         return AirSchedule(
             bgmId = bgmId,
             title = title,
@@ -232,6 +237,7 @@ class ScheduleRepositoryImpl(
             timeCst = timeCst,
             timeJst = timeJst,
             siteLinks = links,
+            nextEpisodeNumber = calculatedEp,
         )
     }
 }

@@ -14,7 +14,7 @@ data class AirSchedule(
     val timeCst: String = "",
     val timeJst: String = "",
     val siteLinks: List<SiteLink> = emptyList(),
-    val nextEpisodeNumber: Int = 1,
+    val nextEpisodeNumber: Int = 0,
     val isAiring: Boolean = true,
 )
 
