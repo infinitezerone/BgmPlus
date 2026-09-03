@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
@@ -150,10 +151,13 @@ fun WaterfallSubjectCard(
                         }
                     }
 
-                    if (doingCount > 200) {
+                    val isRecent = isRecentAiring(subject.date.ifBlank { subject.airDate })
+                    val ratingTotal = rating?.total ?: 0
+
+                    if (isRecent && doingCount > 50) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFFF5722).copy(alpha = 0.85f),
+                            color = Color(0xFFFF5722).copy(alpha = 0.88f),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
@@ -166,9 +170,32 @@ fun WaterfallSubjectCard(
                                     tint = Color.White,
                                     modifier = Modifier.size(10.dp),
                                 )
-                                val text = if (doingCount >= 1000) "${doingCount / 1000}k" else "$doingCount"
                                 Text(
-                                    text = "$text 追",
+                                    text = "${formatCount(doingCount)} 追",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                )
+                            }
+                        }
+                    } else if (ratingTotal > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF3F51B5).copy(alpha = 0.85f),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Group,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(10.dp),
+                                )
+                                Text(
+                                    text = "${formatCount(ratingTotal)} 评",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -345,4 +372,27 @@ private fun WishButton(
             )
         }
     }
+}
+
+internal fun formatCount(count: Int): String =
+    when {
+        count >= 10000 -> {
+            val wan = count / 10000.0
+            String.format(java.util.Locale.getDefault(), "%.1fw", wan)
+        }
+        count >= 1000 -> {
+            val qian = count / 1000.0
+            String.format(java.util.Locale.getDefault(), "%.1fk", qian)
+        }
+        else -> count.toString()
+    }
+
+internal fun isRecentAiring(dateStr: String): Boolean {
+    if (dateStr.isBlank()) return false
+    val year = dateStr.take(4).toIntOrNull() ?: return false
+    val currentYear =
+        java.time.LocalDate
+            .now()
+            .year
+    return year >= currentYear
 }

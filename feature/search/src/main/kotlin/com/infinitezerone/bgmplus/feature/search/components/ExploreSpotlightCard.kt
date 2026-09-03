@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
@@ -170,10 +171,13 @@ fun ExploreSpotlightCard(
                             }
                         }
 
-                        if (doingCount > 100) {
+                        val isRecent = isRecentAiring(subject.date.ifBlank { subject.airDate })
+                        val ratingTotal = rating?.total ?: 0
+
+                        if (isRecent && doingCount > 50) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFFF5722).copy(alpha = 0.85f),
+                                color = Color(0xFFFF5722).copy(alpha = 0.88f),
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
@@ -186,14 +190,32 @@ fun ExploreSpotlightCard(
                                         tint = Color.White,
                                         modifier = Modifier.size(12.dp),
                                     )
-                                    val doingText =
-                                        if (doingCount >= 1000) {
-                                            "${doingCount / 1000}.${(doingCount % 1000) / 100}k"
-                                        } else {
-                                            doingCount.toString()
-                                        }
                                     Text(
-                                        text = "$doingText 人在追",
+                                        text = "${formatCount(doingCount)} 人在追",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                    )
+                                }
+                            }
+                        } else if (ratingTotal > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF3F51B5).copy(alpha = 0.88f),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Group,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp),
+                                    )
+                                    Text(
+                                        text = "${formatCount(ratingTotal)} 人评分",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White,
