@@ -29,6 +29,15 @@ enum class CollectionType(
     DROPPED(5, "抛弃"),
     ;
 
+    fun getVerb(subjectType: SubjectType): String =
+        when (this) {
+            WISH -> subjectType.actionWish
+            DOING -> subjectType.actionDoing
+            COLLECT -> subjectType.actionCollect
+            ON_HOLD -> "搁置"
+            DROPPED -> "抛弃"
+        }
+
     companion object {
         fun fromValue(value: Int): CollectionType = entries.firstOrNull { it.value == value } ?: DOING
     }

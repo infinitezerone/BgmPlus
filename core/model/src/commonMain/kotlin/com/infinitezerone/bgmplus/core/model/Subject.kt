@@ -31,8 +31,22 @@ data class SubjectImages(
     val small: String = "",
     val grid: String = "",
 ) {
+    /**
+     * 适用于绝大多数卡片、列表、网格、双列瀑布流的高效封面图：
+     * 优先采用 Bangumi CDN 裁切优化的 400px (common) / 800px (medium) 压缩图（~25KB），
+     * 彻底避免在移动端列表无脑下载数兆原始扫图 (large) 导致的巨额带宽浪费、解码性能瓶颈与卡顿。
+     * 同时强制转换为 https，避免 301 Moved Permanently 重定向与额外 TLS 握手开销。
+     */
     val bestImage: String
-        get() = large.ifBlank { common.ifBlank { medium } }
+        get() = (common.ifBlank { medium.ifBlank { large } }).replace("http://", "https://")
+
+    /** 适用于大图画廊、全屏海报的高清大图 */
+    val largeImage: String
+        get() = (large.ifBlank { medium.ifBlank { common } }).replace("http://", "https://")
+
+    /** 适用于极小头像、紧凑网格（100px）的微缩图 */
+    val thumbnailImage: String
+        get() = (grid.ifBlank { small.ifBlank { common } }).replace("http://", "https://")
 }
 
 @Serializable
