@@ -122,105 +122,87 @@ fun ExploreSpotlightCard(
                         .padding(16.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                // 顶部：焦点徽标 + 评分与在看热度
+                // 顶部：客观数据浮层（评分 + 社交人数），左侧留白展现海报构图
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                    ) {
-                        Text(
-                            text = "🌟 今日焦点力荐",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
-                    }
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (score > 0.0) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color.Black.copy(alpha = 0.7f),
+                    if (score > 0.0) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.Black.copy(alpha = 0.7f),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Star,
-                                        contentDescription = null,
-                                        tint = Color(0xFFFFB800),
-                                        modifier = Modifier.size(12.dp),
-                                    )
-                                    Text(
-                                        text = score.toString(),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Filled.Star,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFB800),
+                                    modifier = Modifier.size(12.dp),
+                                )
+                                Text(
+                                    text = score.toString(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                )
                             }
                         }
+                    }
 
-                        val isRecent = isRecentAiring(subject.date.ifBlank { subject.airDate })
-                        val ratingTotal = rating?.total ?: 0
+                    val isRecent = isRecentAiring(subject.date.ifBlank { subject.airDate })
+                    val ratingTotal = rating?.total ?: 0
 
-                        if (isRecent && doingCount > 50) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFFF5722).copy(alpha = 0.88f),
+                    if (isRecent && doingCount > 50) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFF5722).copy(alpha = 0.88f),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.LocalFireDepartment,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(12.dp),
-                                    )
-                                    Text(
-                                        text = "${formatCount(doingCount)} 人在追",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Filled.LocalFireDepartment,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp),
+                                )
+                                Text(
+                                    text = "${formatCount(doingCount)} 人在追",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                )
                             }
-                        } else if (ratingTotal > 0) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF3F51B5).copy(alpha = 0.88f),
+                        }
+                    } else if (ratingTotal > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF3F51B5).copy(alpha = 0.88f),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Group,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(12.dp),
-                                    )
-                                    Text(
-                                        text = "${formatCount(ratingTotal)} 人评分",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Filled.Group,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp),
+                                )
+                                Text(
+                                    text = "${formatCount(ratingTotal)} 人评分",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                )
                             }
                         }
                     }
