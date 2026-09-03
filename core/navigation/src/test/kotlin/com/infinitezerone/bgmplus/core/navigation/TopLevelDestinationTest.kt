@@ -9,7 +9,7 @@ class TopLevelDestinationTest {
     @Test
     fun verifyTopLevelDestinations() {
         val destinations = TopLevelDestination.entries
-        assertEquals(4, destinations.size)
+        assertEquals(3, destinations.size)
 
         val schedule = TopLevelDestination.SCHEDULE
         assertEquals("放送", schedule.labelText)
@@ -18,10 +18,6 @@ class TopLevelDestinationTest {
         val explore = TopLevelDestination.EXPLORE
         assertEquals("探索", explore.labelText)
         assertEquals(ExploreRoute, explore.route)
-
-        val rakuen = TopLevelDestination.RAKUEN
-        assertEquals("超展开", rakuen.labelText)
-        assertEquals(RakuenRoute, rakuen.route)
 
         val user = TopLevelDestination.USER
         assertEquals("我的", user.labelText)

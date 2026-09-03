@@ -14,9 +14,6 @@ data object ScheduleRoute : NavKey
 data object ExploreRoute : NavKey
 
 @Serializable
-data object RakuenRoute : NavKey
-
-@Serializable
 data object UserRoute : NavKey
 
 @Serializable

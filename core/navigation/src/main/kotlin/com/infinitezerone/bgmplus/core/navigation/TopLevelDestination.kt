@@ -3,11 +3,9 @@ package com.infinitezerone.bgmplus.core.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Explore
-import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
@@ -32,12 +30,6 @@ enum class TopLevelDestination(
         unselectedIcon = Icons.Outlined.Explore,
         labelText = "探索",
         route = ExploreRoute,
-    ),
-    RAKUEN(
-        selectedIcon = Icons.Filled.Forum,
-        unselectedIcon = Icons.Outlined.Forum,
-        labelText = "超展开",
-        route = RakuenRoute,
     ),
     USER(
         selectedIcon = Icons.Filled.Person,
