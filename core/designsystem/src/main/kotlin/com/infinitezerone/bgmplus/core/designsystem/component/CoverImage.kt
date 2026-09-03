@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -21,7 +23,11 @@ fun CoverImage(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 12.dp,
     aspectRatio: Float = 0.7f,
+    contentScale: ContentScale = ContentScale.Crop,
+    alignment: Alignment = Alignment.Center,
 ) {
+    val secureUrl = remember(url) { url.replace("http://", "https://") }
+
     Box(
         modifier =
             modifier
@@ -29,11 +35,14 @@ fun CoverImage(
                 .clip(RoundedCornerShape(cornerRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        AsyncImage(
-            model = url,
-            contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
+        if (secureUrl.isNotBlank()) {
+            AsyncImage(
+                model = secureUrl,
+                contentDescription = contentDescription,
+                contentScale = contentScale,
+                alignment = alignment,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
