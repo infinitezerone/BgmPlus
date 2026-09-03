@@ -15,10 +15,10 @@ interface SearchRepository {
         offset: Int = 0,
     ): AppResult<List<Subject>>
 
-    /** 高级多维搜索与探索条目 (POST /v0/search/subjects) */
+    /** 高级多维搜索与探索条目 (POST /v0/search/subjects，API 限制单页最大 20 条) */
     suspend fun searchSubjectsAdvanced(
         request: SearchSubjectsRequest,
-        limit: Int = 30,
+        limit: Int = 20,
         offset: Int = 0,
     ): AppResult<List<Subject>>
 }

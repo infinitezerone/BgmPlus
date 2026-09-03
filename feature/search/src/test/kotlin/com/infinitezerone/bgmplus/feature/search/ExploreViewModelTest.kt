@@ -276,13 +276,13 @@ class ExploreViewModelTest {
             val searchRepository = FakeSearchRepository()
             val collectionRepository = FakeCollectionRepository()
             val authRepository = FakeAuthRepository()
-            val initialSubjects = (1L..30L).map { sampleSubject.copy(id = it) }
-            val nextSubject = sampleSubject.copy(id = 31L)
+            val initialSubjects = (1L..20L).map { sampleSubject.copy(id = it) }
+            val nextSubject = sampleSubject.copy(id = 21L)
             searchRepository.advancedSearchResult = AppResult.Success(initialSubjects)
             val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
             advanceUntilIdle()
 
-            assertEquals(30, viewModel.uiState.value.subjects.size)
+            assertEquals(20, viewModel.uiState.value.subjects.size)
             assertTrue(viewModel.uiState.value.hasMore)
 
             searchRepository.advancedSearchResult = AppResult.Success(listOf(nextSubject))
@@ -290,9 +290,9 @@ class ExploreViewModelTest {
             advanceUntilIdle()
 
             assertEquals(2, searchRepository.advancedSearchCallCount)
-            assertEquals(31, viewModel.uiState.value.subjects.size)
+            assertEquals(21, viewModel.uiState.value.subjects.size)
             assertEquals(
-                31L,
+                21L,
                 viewModel.uiState.value.subjects
                     .last()
                     .id,

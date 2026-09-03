@@ -503,7 +503,7 @@ private fun WaterfallGridList(
                 gridState.layoutInfo.visibleItemsInfo
                     .lastOrNull()
                     ?.index ?: 0
-            lastVisible >= total - 4
+            total > 0 && lastVisible >= total - 6
         }.collect { shouldLoad ->
             if (shouldLoad && hasMore && !isLoadingMore) {
                 onLoadMore()
