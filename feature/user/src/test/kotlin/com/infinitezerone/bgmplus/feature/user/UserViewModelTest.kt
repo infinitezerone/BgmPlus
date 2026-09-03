@@ -233,4 +233,16 @@ class UserViewModelTest {
             assertTrue(refreshDone)
             assertEquals(1, authRepo.refreshProfileCallCount)
         }
+
+    @Test
+    fun beginLogin_delegatesToAuthRepository() =
+        runTest {
+            val authRepo = FakeAuthRepository(initialLoggedIn = false)
+            val (viewModel, _) = createViewModel(authRepo = authRepo)
+
+            val url = viewModel.beginLogin()
+
+            assertTrue(url.contains("bgm.tv/oauth/authorize"))
+            assertEquals(1, authRepo.beginLoginCallCount)
+        }
 }

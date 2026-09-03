@@ -123,7 +123,16 @@ fun UserScreen(
 
     UserScreenContent(
         uiState = uiState,
-        onLogin = { viewModel.beginLogin(context) },
+        onLogin = {
+            coroutineScope.launch {
+                val authorizeUrl = viewModel.beginLogin()
+                CustomTabsIntent
+                    .Builder()
+                    .setEphemeralBrowsingEnabled(true)
+                    .build()
+                    .launchUrl(context, Uri.parse(authorizeUrl))
+            }
+        },
         onRefresh = {
             viewModel.refresh { success ->
                 coroutineScope.launch {
