@@ -102,13 +102,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.infinitezerone.bgmplus.core.designsystem.component.CoverImage
+import com.infinitezerone.bgmplus.core.designsystem.theme.RatingGold
+import com.infinitezerone.bgmplus.core.designsystem.theme.WishOrange
 import com.infinitezerone.bgmplus.core.model.CollectionCount
 import com.infinitezerone.bgmplus.core.model.CollectionType
 import com.infinitezerone.bgmplus.core.model.Episode
@@ -123,6 +124,8 @@ import com.infinitezerone.bgmplus.core.model.UserCollection
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import kotlin.math.roundToInt
+
+private const val BGM_BASE_URL = "https://bgm.tv"
 
 /** 条目详情页二级分栏枚举 */
 enum class SubjectDetailTab(
@@ -168,11 +171,11 @@ fun SubjectDetailScreen(
     val context = LocalContext.current
     val handleCharacterClick: (Long) -> Unit =
         onCharacterClick ?: { characterId ->
-            launchCustomTab(context, "https://bgm.tv/character/$characterId")
+            launchCustomTab(context, "$BGM_BASE_URL/character/$characterId")
         }
     val handlePersonClick: (Long) -> Unit =
         onPersonClick ?: { personId ->
-            launchCustomTab(context, "https://bgm.tv/person/$personId")
+            launchCustomTab(context, "$BGM_BASE_URL/person/$personId")
         }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -537,7 +540,7 @@ fun SubjectDetailScreen(
             },
             onOpenWebDelete = {
                 showCollectionSheet = false
-                launchCustomTab(context, "https://bgm.tv/subject/$subjectId")
+                launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId")
             },
         )
     }
@@ -1132,7 +1135,6 @@ private fun SubjectHeaderCard(
                         text = subject.displayName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        lineHeight = 22.sp,
                     )
 
                     if (subject.name.isNotBlank() && subject.name != subject.displayName) {
@@ -1206,8 +1208,8 @@ private fun SubjectHeaderCard(
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFFFFB800).copy(alpha = 0.15f),
-                                border = BorderStroke(0.6.dp, Color(0xFFFFB800).copy(alpha = 0.5f)),
+                                color = RatingGold.copy(alpha = 0.15f),
+                                border = BorderStroke(0.6.dp, RatingGold.copy(alpha = 0.5f)),
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1216,7 +1218,7 @@ private fun SubjectHeaderCard(
                                     Icon(
                                         imageVector = Icons.Filled.Star,
                                         contentDescription = null,
-                                        tint = Color(0xFFFFB800),
+                                        tint = RatingGold,
                                         modifier = Modifier.size(13.dp),
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
@@ -1224,7 +1226,7 @@ private fun SubjectHeaderCard(
                                         text = rating.score.toString(),
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFFFFB800),
+                                        color = RatingGold,
                                     )
                                 }
                             }
@@ -1446,7 +1448,10 @@ private fun RatingDistributionSection(
                 ) {
                     Text(
                         text = if (count > 0) formatCompactNumber(count) else "",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.8f,
+                            ),
                         fontWeight = if (isMode) FontWeight.Bold else FontWeight.Normal,
                         color = if (isMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -1831,7 +1836,7 @@ private fun SubjectPersonalProgressCard(
                             text = "★ ${collection.rate}分 · ${getScoreLabel(collection.rate)}",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFFB800),
+                            color = RatingGold,
                         )
                     }
                     if (collection.comment.isNotBlank()) {
@@ -2320,7 +2325,7 @@ private fun EpisodeListItem(
                             shape = RoundedCornerShape(4.dp),
                             color =
                                 if (isHot) {
-                                    Color(0xFFFF9800).copy(alpha = 0.15f)
+                                    WishOrange.copy(alpha = 0.15f)
                                 } else {
                                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                                 },
@@ -2333,14 +2338,14 @@ private fun EpisodeListItem(
                                 Icon(
                                     imageVector = if (isHot) Icons.Filled.LocalFireDepartment else Icons.Filled.ChatBubbleOutline,
                                     contentDescription = null,
-                                    tint = if (isHot) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                                    tint = if (isHot) WishOrange else MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(11.dp),
                                 )
                                 Text(
                                     text = "${episode.comment} 吐槽",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isHot) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                                    color = if (isHot) WishOrange else MaterialTheme.colorScheme.primary,
                                 )
                             }
                         }
@@ -2468,7 +2473,7 @@ private fun EpisodeGrid(
                                         .padding(3.dp)
                                         .size(5.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFFFF9800)),
+                                        .background(WishOrange),
                             )
                         }
                     }
@@ -2626,7 +2631,7 @@ private fun EpisodeDetailBottomSheet(
             val isHotEpisode = episode.comment >= 50
             Card(
                 onClick = {
-                    launchCustomTab(context, "https://bgm.tv/ep/${episode.id}")
+                    launchCustomTab(context, "$BGM_BASE_URL/ep/${episode.id}")
                 },
                 shape = RoundedCornerShape(12.dp),
                 colors =
@@ -2666,7 +2671,7 @@ private fun EpisodeDetailBottomSheet(
                             shape = CircleShape,
                             color =
                                 if (isHotEpisode) {
-                                    Color(0xFFFF9800)
+                                    WishOrange
                                 } else if (episode.comment > 0) {
                                     MaterialTheme.colorScheme.primary
                                 } else {
@@ -2708,7 +2713,7 @@ private fun EpisodeDetailBottomSheet(
                                         shape = RoundedCornerShape(4.dp),
                                         color =
                                             if (isHotEpisode) {
-                                                Color(0xFFFF9800)
+                                                WishOrange
                                             } else {
                                                 MaterialTheme.colorScheme.primary
                                             },
@@ -2738,7 +2743,7 @@ private fun EpisodeDetailBottomSheet(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                         contentDescription = null,
-                        tint = if (isHotEpisode) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                        tint = if (isHotEpisode) WishOrange else MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -2858,7 +2863,7 @@ private fun EpisodeDiscussionFooter(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 FilledTonalButton(
-                    onClick = { launchCustomTab(context, "https://bgm.tv/subject/$subjectId/board") },
+                    onClick = { launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/board") },
                     modifier = Modifier.weight(1f),
                 ) {
                     Icon(
@@ -2870,7 +2875,7 @@ private fun EpisodeDiscussionFooter(
                     Text("讨论版话题", style = MaterialTheme.typography.labelMedium)
                 }
                 OutlinedButton(
-                    onClick = { launchCustomTab(context, "https://bgm.tv/subject/$subjectId/comments") },
+                    onClick = { launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/comments") },
                     modifier = Modifier.weight(1f),
                 ) {
                     Icon(
@@ -2926,7 +2931,7 @@ private fun SubjectCommunitySection(
                     title = "全网短评吐槽箱",
                     description = "全网观众即时打分、短评吐槽与真实口碑速览",
                     onClick = {
-                        launchCustomTab(context, "https://bgm.tv/subject/$subjectId/comments")
+                        launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/comments")
                     },
                 )
 
@@ -2942,7 +2947,7 @@ private fun SubjectCommunitySection(
                     title = "讨论版交流区",
                     description = "剧情推理解析、细节伏笔考察、名场面研讨与问答",
                     onClick = {
-                        launchCustomTab(context, "https://bgm.tv/subject/$subjectId/board")
+                        launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/board")
                     },
                 )
 
@@ -2958,7 +2963,7 @@ private fun SubjectCommunitySection(
                     title = "长评与影评日志",
                     description = "万字深度长评、主创团队访谈考据与全剧终评",
                     onClick = {
-                        launchCustomTab(context, "https://bgm.tv/subject/$subjectId/reviews")
+                        launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/reviews")
                     },
                 )
             }
