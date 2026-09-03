@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.feature.search.components.ExploreFilterBottomSheet
+import com.infinitezerone.bgmplus.feature.search.components.ExploreSpotlightCard
 import com.infinitezerone.bgmplus.feature.search.components.WaterfallSubjectCard
 import org.koin.androidx.compose.koinViewModel
 
@@ -466,7 +467,23 @@ private fun WaterfallGridList(
         verticalItemSpacing = 10.dp,
         modifier = modifier,
     ) {
-        items(subjects, key = { it.id }) { subject ->
+        // 1. 顶部焦点力荐大卡（打破千篇一律的网格货架，赋予视觉落脚点与情绪安利）
+        if (subjects.isNotEmpty()) {
+            item(span = StaggeredGridItemSpan.FullLine) {
+                val featured = subjects.first()
+                ExploreSpotlightCard(
+                    subject = featured,
+                    isWished = wishedSubjectIds.contains(featured.id),
+                    onSubjectClick = onSubjectClick,
+                    onToggleWish = onToggleWish,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
+        }
+
+        // 2. 双列瀑布流卡片（展示其余条目）
+        val remainingSubjects = if (subjects.size > 1) subjects.drop(1) else emptyList()
+        items(remainingSubjects, key = { it.id }) { subject ->
             WaterfallSubjectCard(
                 subject = subject,
                 isWished = wishedSubjectIds.contains(subject.id),

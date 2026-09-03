@@ -49,13 +49,15 @@ enum class ExploreMood(
     val tag: String?,
     val sort: ExploreSort,
 ) {
-    TRENDING("🔥 本季热门", null, ExploreSort.HEAT),
-    MASTERPIECE("💎 高分神作", null, ExploreSort.SCORE),
-    HEALING("✨ 治愈日常", "治愈", ExploreSort.SCORE),
-    SHONEN("⚔️ 热血战斗", "热血", ExploreSort.HEAT),
-    FANTASY("🔮 奇幻异界", "奇幻", ExploreSort.HEAT),
-    ROMANCE("🌸 恋爱心动", "恋爱", ExploreSort.SCORE),
-    BLIND_BOX("🎲 随心探索", null, ExploreSort.RANK),
+    TRENDING("🔥 当季爆款", null, ExploreSort.HEAT),
+    MASTERPIECE("💎 封神必看", null, ExploreSort.SCORE),
+    HEALING("🌿 深夜解压", "治愈", ExploreSort.SCORE),
+    SHONEN("⚔️ 热血高燃", "热血", ExploreSort.HEAT),
+    SUSPENSE("🧠 烧脑悬疑", "悬疑", ExploreSort.SCORE),
+    TEARS("💧 催泪后劲", "催泪", ExploreSort.SCORE),
+    ROMANCE("🌸 纯爱心动", "恋爱", ExploreSort.SCORE),
+    FANTASY("🔮 异界奇幻", "奇幻", ExploreSort.HEAT),
+    BLIND_BOX("🎲 随心盲盒", null, ExploreSort.RANK),
 }
 
 private data class SeasonMeta(
