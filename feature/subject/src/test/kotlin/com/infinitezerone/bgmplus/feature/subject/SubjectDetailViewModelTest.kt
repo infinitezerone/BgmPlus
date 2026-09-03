@@ -172,6 +172,65 @@ class SubjectDetailViewModelTest {
             )
 
             assertEquals(1, collectionRepo.updateCollectionCallCount)
+            val updatedState = viewModel.uiState.value
+            assertEquals(CollectionType.COLLECT.value, updatedState.collection?.type)
+            assertEquals(9, updatedState.collection?.rate)
+            assertEquals("好看！", updatedState.collection?.comment)
+        }
+
+    @Test
+    fun updateCollectionStatus_rollsBackOnFailure() =
+        runTest {
+            val subjectRepo = FakeSubjectRepository()
+            val collectionRepo = FakeCollectionRepository()
+            collectionRepo.updateCollectionResult = AppResult.Error(IllegalStateException("网络异常"))
+
+            val viewModel =
+                SubjectDetailViewModel(
+                    subjectRepository = subjectRepo,
+                    subjectId = sampleSubject.id,
+                    collectionRepository = collectionRepo,
+                )
+
+            viewModel.updateCollectionStatus(
+                type = CollectionType.DOING,
+            )
+
+            // 失败后回滚为 null 并记录错误
+            assertEquals(null, viewModel.uiState.value.collection)
+            assertEquals("网络异常", viewModel.uiState.value.error)
+        }
+
+    @Test
+    fun toggleWatching_quickTogglesCollectionStatus() =
+        runTest {
+            val subjectRepo = FakeSubjectRepository()
+            val collectionRepo = FakeCollectionRepository()
+
+            val viewModel =
+                SubjectDetailViewModel(
+                    subjectRepository = subjectRepo,
+                    subjectId = sampleSubject.id,
+                    collectionRepository = collectionRepo,
+                )
+
+            // 1. 初始为 null，快捷追番即刻变为在看
+            viewModel.toggleWatching()
+            assertEquals(
+                CollectionType.DOING.value,
+                viewModel.uiState.value.collection
+                    ?.type,
+            )
+            assertEquals(1, collectionRepo.updateCollectionCallCount)
+
+            // 2. 再次点击，变为移出在看（DROPPED）
+            viewModel.toggleWatching()
+            assertEquals(
+                CollectionType.DROPPED.value,
+                viewModel.uiState.value.collection
+                    ?.type,
+            )
+            assertEquals(2, collectionRepo.updateCollectionCallCount)
         }
 
     @Test
@@ -240,5 +299,25 @@ class SubjectDetailViewModelTest {
             assertEquals(samplePersonList, viewModel.uiState.value.persons)
             assertEquals(sampleRelationList, viewModel.uiState.value.relations)
             assertFalse(viewModel.uiState.value.isLoading)
+        }
+
+    @Test
+    fun updateCollectionStatus_preservesActualSubjectTypeInOptimisticCreation() =
+        runTest {
+            val bookSubject = sampleSubject.copy(id = 555L, type = 1) // 1 = BOOK
+            val repository =
+                FakeSubjectRepository().apply {
+                    sendSubject(bookSubject)
+                }
+            val collectionRepository = FakeCollectionRepository()
+
+            val viewModel = SubjectDetailViewModel(repository, bookSubject.id, collectionRepository)
+            testScheduler.advanceUntilIdle()
+
+            viewModel.updateCollectionStatus(CollectionType.DOING)
+
+            val optimistic = viewModel.uiState.value.collection
+            assertEquals(1, optimistic?.subjectType)
+            assertEquals(CollectionType.DOING.value, optimistic?.type)
         }
 }

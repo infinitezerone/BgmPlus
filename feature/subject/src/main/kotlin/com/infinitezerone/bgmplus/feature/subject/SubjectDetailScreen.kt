@@ -4,7 +4,10 @@ import android.content.Context
 import android.content.Intent
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,20 +38,25 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,15 +73,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -83,13 +96,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.infinitezerone.bgmplus.core.designsystem.component.CoverImage
 import com.infinitezerone.bgmplus.core.model.CollectionCount
 import com.infinitezerone.bgmplus.core.model.CollectionType
@@ -99,26 +117,80 @@ import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.core.model.SubjectCharacter
 import com.infinitezerone.bgmplus.core.model.SubjectPerson
 import com.infinitezerone.bgmplus.core.model.SubjectRelation
+import com.infinitezerone.bgmplus.core.model.SubjectType
 import com.infinitezerone.bgmplus.core.model.Tag
 import com.infinitezerone.bgmplus.core.model.UserCollection
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** 条目详情页二级分栏枚举 */
+enum class SubjectDetailTab(
+    val label: String,
+) {
+    EPISODES("📺 章节打卡"),
+    DETAILS("📖 资料与演职员"),
+}
+
+private fun getTabLabel(
+    tab: SubjectDetailTab,
+    subjectType: SubjectType,
+): String =
+    when (tab) {
+        SubjectDetailTab.EPISODES ->
+            when (subjectType) {
+                SubjectType.BOOK -> "📚 卷册与章节"
+                SubjectType.MUSIC -> "🎵 曲目列表"
+                SubjectType.GAME -> "🎮 关卡与章节"
+                SubjectType.ANIME, SubjectType.REAL -> "📺 章节打卡"
+            }
+        SubjectDetailTab.DETAILS ->
+            when (subjectType) {
+                SubjectType.BOOK -> "📖 原作与出版信息"
+                SubjectType.MUSIC -> "💿 专辑制作与人员"
+                SubjectType.GAME -> "🎮 游戏资料与主创"
+                SubjectType.ANIME, SubjectType.REAL -> "📖 资料与演职员"
+            }
+    }
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SubjectDetailScreen(
     subjectId: Long,
     onBackClick: () -> Unit,
     onSubjectClick: (Long) -> Unit = {},
     onTagClick: (String) -> Unit = {},
+    onCharacterClick: ((Long) -> Unit)? = null,
+    onPersonClick: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: SubjectDetailViewModel = koinViewModel(parameters = { parametersOf(subjectId) }),
 ) {
+    val context = LocalContext.current
+    val handleCharacterClick: (Long) -> Unit =
+        onCharacterClick ?: { characterId ->
+            launchCustomTab(context, "https://bgm.tv/character/$characterId")
+        }
+    val handlePersonClick: (Long) -> Unit =
+        onPersonClick ?: { personId ->
+            launchCustomTab(context, "https://bgm.tv/person/$personId")
+        }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val subjectType =
+        remember(uiState.subject?.type) {
+            uiState.subject?.type?.let { SubjectType.fromValue(it) } ?: SubjectType.ANIME
+        }
     var showCollectionSheet by rememberSaveable { mutableStateOf(false) }
-    var isGridView by rememberSaveable { mutableStateOf(false) }
+    var isGridView by rememberSaveable { mutableStateOf(true) }
     var selectedEpisodeForDetail by remember { mutableStateOf<Episode?>(null) }
+    var previewCharacter by remember { mutableStateOf<SubjectCharacter?>(null) }
+    var selectedTab by rememberSaveable { mutableStateOf(SubjectDetailTab.EPISODES) }
+
+    LaunchedEffect(subjectType, uiState.episodes) {
+        if (subjectType == SubjectType.GAME && uiState.episodes.isEmpty()) {
+            selectedTab = SubjectDetailTab.DETAILS
+        }
+    }
 
     val groupedEpisodes =
         remember(uiState.episodes) {
@@ -154,14 +226,6 @@ fun SubjectDetailScreen(
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = viewModel::refresh) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "刷新数据",
-                        )
-                    }
-                },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -170,220 +234,287 @@ fun SubjectDetailScreen(
         },
         modifier = modifier,
     ) { innerPadding ->
-        Column(
+        PullToRefreshBox(
+            isRefreshing = uiState.isLoading && uiState.subject != null,
+            onRefresh = viewModel::refresh,
             modifier =
                 Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
         ) {
-            if (uiState.isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-
-            when {
-                uiState.subject == null && uiState.isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            CircularProgressIndicator()
-                            Text(
-                                text = "正在加载条目详情...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+            Column(
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (uiState.isLoading && uiState.subject == null) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
 
-                uiState.subject == null && uiState.error != null -> {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Card(
-                            colors =
-                                CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                ),
-                            modifier = Modifier.fillMaxWidth(),
+                when {
+                    uiState.subject == null && uiState.isLoading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
                         ) {
                             Column(
-                                modifier = Modifier.padding(24.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.ErrorOutline,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(48.dp),
-                                )
+                                CircularProgressIndicator()
                                 Text(
-                                    text = "条目加载失败",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    text = "正在加载条目详情...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                Text(
-                                    text = uiState.error.orEmpty(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                )
-                                Button(
-                                    onClick = viewModel::refresh,
-                                    modifier = Modifier.padding(top = 8.dp),
+                            }
+                        }
+                    }
+
+                    uiState.subject == null && uiState.error != null -> {
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(24.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Card(
+                                colors =
+                                    CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    ),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
-                                    Text(text = "重新加载")
+                                    Icon(
+                                        imageVector = Icons.Filled.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(48.dp),
+                                    )
+                                    Text(
+                                        text = "条目加载失败",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                    Text(
+                                        text = uiState.error.orEmpty(),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                    Button(
+                                        onClick = viewModel::refresh,
+                                        modifier = Modifier.padding(top = 8.dp),
+                                    ) {
+                                        Text(text = "重新加载")
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                uiState.subject != null -> {
-                    val subject = uiState.subject!!
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        if (uiState.error != null) {
-                            item(key = "inline_error") {
+                    uiState.subject != null -> {
+                        val subject = uiState.subject!!
+                        val totalEpisodes = if (subject.eps > 0) subject.eps else subject.totalEpisodes
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            if (uiState.error != null) {
+                                item(key = "inline_error") {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.errorContainer,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text(
+                                            text = "同步提示：${uiState.error}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            modifier = Modifier.padding(12.dp),
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 1. 条目头部 Hero 卡片
+                            item(key = "header") {
+                                SubjectHeaderCard(
+                                    subject = subject,
+                                    subjectType = subjectType,
+                                )
+                            }
+
+                            // 2. 我的追番/阅读/收听/游玩与进度条面板
+                            item(key = "collection_progress_bar") {
+                                SubjectPersonalProgressCard(
+                                    collection = uiState.collection,
+                                    totalEpisodes = totalEpisodes,
+                                    subjectType = subjectType,
+                                    onOpenSheet = { showCollectionSheet = true },
+                                    onToggleWatching = viewModel::toggleWatching,
+                                )
+                            }
+
+                            // 3. 粘性二级分栏 Tab 栏
+                            stickyHeader(key = "subject_tabs_bar") {
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.errorContainer,
-                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
                                 ) {
-                                    Text(
-                                        text = "同步提示：${uiState.error}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.padding(12.dp),
-                                    )
+                                    PrimaryTabRow(
+                                        selectedTabIndex = selectedTab.ordinal,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        SubjectDetailTab.entries.forEach { tab ->
+                                            val tabLabel = getTabLabel(tab, subjectType)
+                                            Tab(
+                                                selected = selectedTab == tab,
+                                                onClick = { selectedTab = tab },
+                                                text = {
+                                                    Text(
+                                                        text =
+                                                            if (tab == SubjectDetailTab.EPISODES && currentEpisodes.isNotEmpty()) {
+                                                                "$tabLabel (${currentEpisodes.size})"
+                                                            } else {
+                                                                tabLabel
+                                                            },
+                                                        fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Medium,
+                                                    )
+                                                },
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                        }
 
-                        item(key = "header") {
-                            SubjectHeaderCard(subject = subject)
-                        }
+                            // 4. Tab 切换内容
+                            when (selectedTab) {
+                                SubjectDetailTab.EPISODES -> {
+                                    val watchedInGroup = currentEpisodes.count { isEpisodeWatched(it, uiState.collection?.epStatus ?: 0) }
 
-                        item(key = "rating_distribution") {
-                            RatingDistributionCard(
-                                rating = subject.rating,
-                                collection = subject.collection,
-                                tags = subject.tags,
-                                onTagClick = onTagClick,
-                            )
-                        }
+                                    item(key = "episodes_header") {
+                                        EpisodesSectionHeader(
+                                            totalEpisodes = currentEpisodes.size,
+                                            watchedEpisodes = watchedInGroup,
+                                            subjectType = subjectType,
+                                            isGridView = isGridView,
+                                            onToggleView = { isGridView = !isGridView },
+                                        )
+                                    }
 
-                        item(key = "collection_bar") {
-                            CollectionActionBar(
-                                collection = uiState.collection,
-                                onOpenSheet = { showCollectionSheet = true },
-                            )
-                        }
+                                    if (availableGroups.size > 1) {
+                                        item(key = "episode_group_chips") {
+                                            EpisodeGroupFilterChips(
+                                                availableGroups = availableGroups,
+                                                groupedEpisodes = groupedEpisodes,
+                                                selectedGroup = activeGroup,
+                                                onGroupSelected = { selectedGroup = it },
+                                            )
+                                        }
+                                    }
 
-                        if (uiState.relations.isNotEmpty()) {
-                            item(key = "relations_section") {
-                                RelationsSection(
-                                    relations = uiState.relations,
-                                    onSubjectClick = onSubjectClick,
-                                )
-                            }
-                        }
+                                    if (currentEpisodes.isEmpty()) {
+                                        item(key = "episodes_empty") {
+                                            Box(
+                                                modifier =
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 32.dp),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Text(
+                                                    text = if (uiState.isLoading) "正在加载章节列表..." else "暂无分集信息",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        }
+                                    } else if (isGridView) {
+                                        item(key = "episodes_grid") {
+                                            EpisodeGrid(
+                                                episodes = currentEpisodes,
+                                                watchedCount = uiState.collection?.epStatus ?: 0,
+                                                onToggleWatched = { episode, isWatched ->
+                                                    val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
+                                                    viewModel.toggleEpisodeWatched(episode.id, isWatched, epNumber)
+                                                },
+                                                onEpisodeLongClick = { episode ->
+                                                    selectedEpisodeForDetail = episode
+                                                },
+                                            )
+                                        }
+                                    } else {
+                                        items(items = currentEpisodes, key = { it.id }) { episode ->
+                                            val isWatched = isEpisodeWatched(episode, uiState.collection?.epStatus ?: 0)
+                                            val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
+                                            EpisodeListItem(
+                                                episode = episode,
+                                                isWatched = isWatched,
+                                                onClick = {
+                                                    selectedEpisodeForDetail = episode
+                                                },
+                                                onToggleWatched = {
+                                                    viewModel.toggleEpisodeWatched(episode.id, !isWatched, epNumber)
+                                                },
+                                            )
+                                        }
+                                    }
 
-                        if (uiState.characters.isNotEmpty()) {
-                            item(key = "characters_section") {
-                                CharactersSection(characters = uiState.characters)
-                            }
-                        }
+                                    item(key = "web_discussion_section_episodes") {
+                                        EpisodeDiscussionFooter(subjectId = subjectId)
+                                    }
+                                }
 
-                        if (uiState.persons.isNotEmpty()) {
-                            item(key = "staff_section") {
-                                StaffSection(persons = uiState.persons)
-                            }
-                        }
+                                SubjectDetailTab.DETAILS -> {
+                                    item(key = "rating_distribution") {
+                                        RatingDistributionCard(
+                                            rating = subject.rating,
+                                            collection = subject.collection,
+                                            tags = subject.tags,
+                                            onTagClick = onTagClick,
+                                        )
+                                    }
 
-                        val watchedInGroup = currentEpisodes.count { isEpisodeWatched(it, uiState.collection?.epStatus ?: 0) }
+                                    if (uiState.relations.isNotEmpty()) {
+                                        item(key = "relations_section") {
+                                            RelationsSection(
+                                                relations = uiState.relations,
+                                                onSubjectClick = onSubjectClick,
+                                            )
+                                        }
+                                    }
 
-                        item(key = "episodes_header") {
-                            EpisodesSectionHeader(
-                                totalEpisodes = currentEpisodes.size,
-                                watchedEpisodes = watchedInGroup,
-                                isGridView = isGridView,
-                                onToggleView = { isGridView = !isGridView },
-                            )
-                        }
+                                    if (uiState.characters.isNotEmpty()) {
+                                        item(key = "characters_section") {
+                                            CharactersSection(
+                                                characters = uiState.characters,
+                                                onCharacterClick = handleCharacterClick,
+                                                onActorClick = handlePersonClick,
+                                                onPreviewCharacter = { previewCharacter = it },
+                                            )
+                                        }
+                                    }
 
-                        if (availableGroups.size > 1) {
-                            item(key = "episode_group_chips") {
-                                EpisodeGroupFilterChips(
-                                    availableGroups = availableGroups,
-                                    groupedEpisodes = groupedEpisodes,
-                                    selectedGroup = activeGroup,
-                                    onGroupSelected = { selectedGroup = it },
-                                )
-                            }
-                        }
+                                    if (uiState.persons.isNotEmpty()) {
+                                        item(key = "staff_section") {
+                                            StaffSection(
+                                                persons = uiState.persons,
+                                                onPersonClick = handlePersonClick,
+                                            )
+                                        }
+                                    }
 
-                        if (currentEpisodes.isEmpty()) {
-                            item(key = "episodes_empty") {
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 32.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = if (uiState.isLoading) "正在加载章节列表..." else "暂无分集信息",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                                    item(key = "web_discussion_section_details") {
+                                        SubjectCommunitySection(subjectId = subjectId)
+                                    }
                                 }
                             }
-                        } else if (isGridView) {
-                            item(key = "episodes_grid") {
-                                EpisodeGrid(
-                                    episodes = currentEpisodes,
-                                    watchedCount = uiState.collection?.epStatus ?: 0,
-                                    onToggleWatched = { episode, isWatched ->
-                                        val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
-                                        viewModel.toggleEpisodeWatched(episode.id, isWatched, epNumber)
-                                    },
-                                    onEpisodeLongClick = { episode ->
-                                        selectedEpisodeForDetail = episode
-                                    },
-                                )
-                            }
-                        } else {
-                            items(items = currentEpisodes, key = { it.id }) { episode ->
-                                val isWatched = isEpisodeWatched(episode, uiState.collection?.epStatus ?: 0)
-                                val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
-                                EpisodeListItem(
-                                    episode = episode,
-                                    isWatched = isWatched,
-                                    onClick = {
-                                        selectedEpisodeForDetail = episode
-                                    },
-                                    onToggleWatched = {
-                                        viewModel.toggleEpisodeWatched(episode.id, !isWatched, epNumber)
-                                    },
-                                )
-                            }
-                        }
-
-                        item(key = "web_discussion_section") {
-                            SubjectDiscussionCard(subjectId = subjectId)
                         }
                     }
                 }
@@ -394,6 +525,7 @@ fun SubjectDetailScreen(
     if (showCollectionSheet) {
         CollectionStatusBottomSheet(
             currentCollection = uiState.collection,
+            subjectType = subjectType,
             onDismiss = { showCollectionSheet = false },
             onSave = { type, rate, comment, private ->
                 viewModel.updateCollectionStatus(
@@ -402,6 +534,10 @@ fun SubjectDetailScreen(
                     comment = comment,
                     private = private,
                 )
+            },
+            onOpenWebDelete = {
+                showCollectionSheet = false
+                launchCustomTab(context, "https://bgm.tv/subject/$subjectId")
             },
         )
     }
@@ -415,6 +551,16 @@ fun SubjectDetailScreen(
             onToggleWatched = { episode, watched ->
                 val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
                 viewModel.toggleEpisodeWatched(episode.id, watched, epNumber)
+            },
+        )
+    }
+
+    previewCharacter?.let { character ->
+        CharacterImagePreviewDialog(
+            character = character,
+            onDismiss = { previewCharacter = null },
+            onOpenWeb = { characterId ->
+                handleCharacterClick(characterId)
             },
         )
     }
@@ -530,63 +676,109 @@ private fun RelationCard(
 @Composable
 private fun CharactersSection(
     characters: List<SubjectCharacter>,
+    onCharacterClick: (Long) -> Unit,
+    onActorClick: (Long) -> Unit,
+    onPreviewCharacter: (SubjectCharacter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(
-            text = "登场角色与声优",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "登场角色与声优",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "${characters.size} 位角色",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 0.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
             items(items = characters, key = { it.id }) { character ->
-                CharacterCard(character = character)
+                CharacterCard(
+                    character = character,
+                    onCharacterClick = onCharacterClick,
+                    onActorClick = onActorClick,
+                    onPreviewCharacter = onPreviewCharacter,
+                )
             }
         }
     }
 }
 
-/** 角色卡片：角色头像、姓名、定位 (主角/配角)、CV 信息 */
+/** 角色卡片：头部正容立绘（顶部对齐防裁切）、主角/配角定位、放大立绘按钮、声优信息与点击跳转 */
 @Composable
 private fun CharacterCard(
     character: SubjectCharacter,
+    onCharacterClick: (Long) -> Unit,
+    onActorClick: (Long) -> Unit,
+    onPreviewCharacter: (SubjectCharacter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier.width(130.dp),
+        onClick = { onCharacterClick(character.id) },
+        modifier = modifier.width(136.dp),
+        shape = RoundedCornerShape(12.dp),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             Box(modifier = Modifier.fillMaxWidth()) {
+                // 顶部对齐（TopCenter）裁切：确保长条立绘优先完整显示头部、面部与眼神，消除“只有身子”的问题
                 CoverImage(
                     url = character.images?.bestImage.orEmpty(),
                     contentDescription = character.name,
                     modifier = Modifier.fillMaxWidth(),
                     cornerRadius = 8.dp,
-                    aspectRatio = 0.75f,
+                    aspectRatio = 0.72f,
+                    alignment = Alignment.TopCenter,
                 )
+
+                // 主角 / 配角定位标签
                 if (character.roleName.isNotBlank()) {
                     Surface(
                         shape = RoundedCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
                         modifier = Modifier.align(Alignment.TopStart),
                     ) {
                         Text(
                             text = character.roleName,
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+
+                // 放大预览按钮：点击查看全身完整立绘
+                Surface(
+                    onClick = { onPreviewCharacter(character) },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).size(24.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.ZoomIn,
+                            contentDescription = "查看全身立绘",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(15.dp),
                         )
                     }
                 }
@@ -594,52 +786,86 @@ private fun CharacterCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Text(
-                text = character.name,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // 角色名字 + 跳转外链提示
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = character.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(11.dp),
+                )
+            }
 
+            // 声优信息：独立胶囊，点击跳转声优个人主页
             val actor = character.actors.firstOrNull()
             if (actor != null && actor.name.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    onClick = { onActorClick(actor.id) },
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.75f),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    val actorImage = actor.images?.bestImage.orEmpty()
-                    if (actorImage.isNotBlank()) {
-                        CoverImage(
-                            url = actorImage,
-                            contentDescription = actor.name,
-                            modifier = Modifier.size(18.dp),
-                            cornerRadius = 9.dp,
-                            aspectRatio = 1f,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                    ) {
+                        val actorImage = actor.images?.bestImage.orEmpty()
+                        if (actorImage.isNotBlank()) {
+                            CoverImage(
+                                url = actorImage,
+                                contentDescription = actor.name,
+                                modifier = Modifier.size(18.dp),
+                                cornerRadius = 9.dp,
+                                aspectRatio = 1f,
+                                alignment = Alignment.TopCenter,
+                            )
+                        }
+                        Text(
+                            text = "CV: ${actor.name}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                            modifier = Modifier.size(10.dp),
                         )
                     }
-                    Text(
-                        text = "CV: ${actor.name}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
                 }
             }
         }
     }
 }
 
-/** 制作团队区域 */
+/** 制作团队区域：支持点击职员跳转其个人主页 */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StaffSection(
     persons: List<SubjectPerson>,
+    onPersonClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var isExpanded by rememberSaveable { mutableStateOf(false) }
-    val groupedStaff = persons.groupBy({ it.relation }, { it.name })
+    val groupedStaff = persons.groupBy { it.relation }
     val entries = groupedStaff.entries.toList()
     val displayEntries = if (isExpanded || entries.size <= 6) entries else entries.take(6)
 
@@ -655,43 +881,71 @@ private fun StaffSection(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
             colors =
                 CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 ),
+            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
         ) {
             Column(
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                displayEntries.forEach { (relation, names) ->
+                displayEntries.forEach { (relation, staffMembers) ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.Top,
                     ) {
                         Text(
                             text = relation,
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.width(84.dp),
+                            modifier = Modifier.width(86.dp).padding(vertical = 2.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                        Text(
-                            text = names.joinToString("、"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
+                        FlowRow(
                             modifier = Modifier.weight(1f),
-                        )
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            staffMembers.forEachIndexed { index, person ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(vertical = 2.dp),
+                                ) {
+                                    Text(
+                                        text = person.name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier =
+                                            Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .clickable { onPersonClick(person.id) }
+                                                .padding(horizontal = 3.dp),
+                                    )
+                                    if (index < staffMembers.lastIndex) {
+                                        Text(
+                                            text = "、",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
                 if (entries.size > 6) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                     )
                     Row(
                         modifier =
@@ -722,106 +976,279 @@ private fun StaffSection(
     }
 }
 
-/** 条目头部卡片：海报、译名/原名、放送日期、话数、评分与 Rank、简介展开/折叠 */
+/** 角色全身立绘与原图大图预览弹窗 */
+@Composable
+private fun CharacterImagePreviewDialog(
+    character: SubjectCharacter,
+    onDismiss: () -> Unit,
+    onOpenWeb: (Long) -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Black.copy(alpha = 0.92f),
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "关闭",
+                        tint = Color.White,
+                    )
+                }
+
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp, vertical = 56.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    val imageUrl = character.images?.bestImage.orEmpty()
+                    if (imageUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = imageUrl,
+                            contentDescription = character.name,
+                            contentScale = ContentScale.Fit,
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp)),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = character.name,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                        )
+                        if (character.roleName.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                            ) {
+                                Text(
+                                    text = character.roleName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
+                    }
+
+                    val actor = character.actors.firstOrNull()
+                    if (actor != null && actor.name.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "声优：${actor.name}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.8f),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    FilledTonalButton(
+                        onClick = {
+                            onDismiss()
+                            onOpenWeb(character.id)
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("在 Bangumi 查看角色详情")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 条目头部卡片：立体圆角海报、完整译名与原名、年份季度徽章、评分与全站 Rank、可展开简介 */
 @Composable
 private fun SubjectHeaderCard(
     subject: Subject,
+    subjectType: SubjectType,
     modifier: Modifier = Modifier,
 ) {
     var isSummaryExpanded by rememberSaveable { mutableStateOf(false) }
 
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                CoverImage(
-                    url = subject.images?.bestImage.orEmpty(),
-                    contentDescription = subject.displayName,
-                    modifier = Modifier.width(108.dp),
-                )
-                Column(modifier = Modifier.weight(1f)) {
+                // 立体圆角海报
+                Box(
+                    modifier =
+                        Modifier
+                            .width(108.dp)
+                            .height(152.dp)
+                            .clip(RoundedCornerShape(10.dp)),
+                ) {
+                    CoverImage(
+                        url = subject.images?.bestImage.orEmpty(),
+                        contentDescription = subject.displayName,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
+                // 右侧信息区
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Text(
                         text = subject.displayName,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
+                        lineHeight = 22.sp,
                     )
+
                     if (subject.name.isNotBlank() && subject.name != subject.displayName) {
-                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = subject.name,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = MaterialTheme.typography.bodySmall.fontSize * 0.9f,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // 类型徽章、放送/发行日期与集数标签
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 2.dp),
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                        ) {
+                            Text(
+                                text = "${subjectType.iconEmoji} ${subjectType.label}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp),
+                            )
+                        }
 
-                    val dateText = subject.date.ifBlank { subject.airDate }
-                    if (dateText.isNotBlank()) {
-                        Text(
-                            text = "放送：$dateText",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        val dateText = subject.date.ifBlank { subject.airDate }
+                        if (dateText.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            ) {
+                                Text(
+                                    text = dateText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp),
+                                )
+                            }
+                        }
+
+                        val episodeCount = if (subject.eps > 0) subject.eps else subject.totalEpisodes
+                        if (episodeCount > 0 && subjectType != SubjectType.GAME) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            ) {
+                                Text(
+                                    text = "全 $episodeCount ${subjectType.unitName}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp),
+                                )
+                            }
+                        }
                     }
 
-                    val episodeCount = if (subject.eps > 0) subject.eps else subject.totalEpisodes
-                    if (episodeCount > 0) {
-                        Text(
-                            text = "全 $episodeCount 话",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
+                    // 评分与 Rank 黄金徽章
                     val rating = subject.rating
                     if (rating != null && rating.score > 0.0) {
-                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(top = 4.dp),
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Star,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                text = rating.score.toString(),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFFFFB800).copy(alpha = 0.15f),
+                                border = BorderStroke(0.6.dp, Color(0xFFFFB800).copy(alpha = 0.5f)),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Star,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFB800),
+                                        modifier = Modifier.size(13.dp),
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = rating.score.toString(),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFFFFB800),
+                                    )
+                                }
+                            }
+
                             if (rating.rank > 0) {
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
                                 ) {
                                     Text(
                                         text = "Rank #${rating.rank}",
                                         style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                                     )
                                 }
                             }
+
                             if (rating.total > 0) {
                                 Text(
-                                    text = "(${rating.total}人)",
+                                    text = "${rating.total}人",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 )
                             }
                         }
@@ -831,8 +1258,8 @@ private fun SubjectHeaderCard(
 
             if (subject.summary.isNotBlank()) {
                 HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(vertical = 10.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                 )
                 Text(
                     text = subject.summary.trim(),
@@ -847,12 +1274,12 @@ private fun SubjectHeaderCard(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(4.dp))
                             .clickable { isSummaryExpanded = !isSummaryExpanded }
-                            .padding(vertical = 4.dp),
+                            .padding(top = 6.dp, bottom = 2.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = if (isSummaryExpanded) "收起简介" else "展开全部",
+                        text = if (isSummaryExpanded) "收起简介" else "展开完整简介",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
@@ -1238,30 +1665,61 @@ private fun formatCompactNumber(number: Int): String =
         else -> "0"
     }
 
-/** 收藏状态操作栏：展示当前状态与修改按钮 */
+/** 个人追番/阅读/收听/游玩状态与进度卡片 */
 @Composable
-private fun CollectionActionBar(
+private fun SubjectPersonalProgressCard(
     collection: UserCollection?,
+    totalEpisodes: Int,
+    subjectType: SubjectType,
     onOpenSheet: () -> Unit,
+    onToggleWatching: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val currentEp = collection?.epStatus ?: 0
+    val progress = if (totalEpisodes > 0) (currentEp.toFloat() / totalEpisodes).coerceIn(0f, 1f) else 0f
+
+    val cardTitle =
+        when (subjectType) {
+            SubjectType.BOOK -> "我的阅读与进度"
+            SubjectType.MUSIC -> "我的收听与进度"
+            SubjectType.GAME -> "我的游玩与评测"
+            SubjectType.ANIME, SubjectType.REAL -> "我的追番与进度"
+        }
+
+    val actionButtonText =
+        if (collection != null) {
+            "修改"
+        } else {
+            when (subjectType) {
+                SubjectType.BOOK -> "追读"
+                SubjectType.MUSIC -> "收听"
+                SubjectType.GAME -> "在玩"
+                SubjectType.ANIME, SubjectType.REAL -> "追番"
+            }
+        }
+
     Card(
         onClick = onOpenSheet,
         modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ),
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
     ) {
-        Row(
+        Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1273,49 +1731,110 @@ private fun CollectionActionBar(
                         modifier = Modifier.size(20.dp),
                     )
                     Text(
-                        text = "我的收藏与进度",
+                        text = cardTitle,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                     )
                     if (collection != null) {
+                        val verb = CollectionType.fromValue(collection.type).getVerb(subjectType)
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = MaterialTheme.colorScheme.primaryContainer,
                         ) {
                             Text(
-                                text = CollectionType.fromValue(collection.type).label,
-                                style = MaterialTheme.typography.labelMedium,
+                                text = verb,
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                FilledTonalButton(
+                    onClick = if (collection != null) onOpenSheet else onToggleWatching,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Icon(
+                        imageVector = if (collection != null) Icons.Filled.Edit else Icons.Filled.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = actionButtonText,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
 
-                if (collection != null) {
+            if (collection != null) {
+                if (subjectType == SubjectType.GAME) {
+                    val statusVerb = CollectionType.fromValue(collection.type).getVerb(subjectType)
+                    Text(
+                        text = "游玩状态：$statusVerb",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                } else if (totalEpisodes > 0 || (subjectType == SubjectType.BOOK && collection.volStatus > 0)) {
+                    val progressLabel =
+                        when (subjectType) {
+                            SubjectType.BOOK -> {
+                                val vol = collection.volStatus
+                                val ep = collection.epStatus
+                                if (vol > 0) "已读 $vol 卷 · $ep 话" else "已读 $ep / 全 $totalEpisodes 话"
+                            }
+                            SubjectType.MUSIC -> "已听 $currentEp / 全 $totalEpisodes 首"
+                            else -> "已看 $currentEp / 全 $totalEpisodes 话"
+                        }
+
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (collection.rate > 0) {
+                        Text(
+                            text = progressLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (totalEpisodes > 0) {
                             Text(
-                                text = "★ ${collection.rate}分 · ${getScoreLabel(collection.rate)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
+                                text = "${(progress * 100).roundToInt()}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
                             )
                         }
+                    }
+
+                    if (totalEpisodes > 0) {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                    }
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (collection.rate > 0) {
                         Text(
-                            text = "已看 ${collection.epStatus} 话",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = "★ ${collection.rate}分 · ${getScoreLabel(collection.rate)}",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFB800),
                         )
                     }
                     if (collection.comment.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "「${collection.comment}」",
                             style = MaterialTheme.typography.bodySmall,
@@ -1324,25 +1843,20 @@ private fun CollectionActionBar(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                } else {
-                    Text(
-                        text = "未收藏此条目，点击记录追番状态与打分",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            FilledTonalButton(onClick = onOpenSheet) {
-                Icon(
-                    imageVector = if (collection != null) Icons.Filled.Edit else Icons.Filled.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+            } else {
+                val idlePrompt =
+                    when (subjectType) {
+                        SubjectType.BOOK -> "点击记录阅读状态、已读卷数与个人短评"
+                        SubjectType.MUSIC -> "点击记录收听状态、已听曲目与个人短评"
+                        SubjectType.GAME -> "点击记录游玩状态、通关评价与心得打分"
+                        SubjectType.ANIME, SubjectType.REAL -> "点击记录追番状态、更新观看进度与个人打分"
+                    }
+                Text(
+                    text = idlePrompt,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = if (collection != null) "修改" else "收藏")
             }
         }
     }
@@ -1353,8 +1867,10 @@ private fun CollectionActionBar(
 @Composable
 private fun CollectionStatusBottomSheet(
     currentCollection: UserCollection?,
+    subjectType: SubjectType,
     onDismiss: () -> Unit,
     onSave: (type: CollectionType, rate: Int?, comment: String?, private: Boolean) -> Unit,
+    onOpenWebDelete: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedType by rememberSaveable {
@@ -1401,7 +1917,7 @@ private fun CollectionStatusBottomSheet(
                         FilterChip(
                             selected = isSelected,
                             onClick = { selectedType = type },
-                            label = { Text(text = type.label) },
+                            label = { Text(text = type.getVerb(subjectType)) },
                             leadingIcon =
                                 if (isSelected) {
                                     {
@@ -1506,7 +2022,63 @@ private fun CollectionStatusBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // 5. 底部操作按钮
+            // 5. 网页端删除收藏引导（Bangumi 官方未开放删除 API，需前往网页端操作）
+            if (currentCollection != null) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+                    border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "删除此收藏",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Bangumi API 未开放删除接口，需在网页端操作",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        FilledTonalButton(
+                            onClick = onOpenWebDelete,
+                            colors =
+                                ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                                    contentColor = MaterialTheme.colorScheme.error,
+                                ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "前往网页端删除",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 6. 底部操作按钮
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1536,15 +2108,32 @@ private fun CollectionStatusBottomSheet(
     }
 }
 
-/** 分集列表头部栏：总数/打卡进度与列表/网格切换 */
+/** 分集/曲目/章节列表头部栏：总数/打卡进度与列表/网格切换 */
 @Composable
 private fun EpisodesSectionHeader(
     totalEpisodes: Int,
     watchedEpisodes: Int,
+    subjectType: SubjectType,
     isGridView: Boolean,
     onToggleView: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val headerTitle =
+        when (subjectType) {
+            SubjectType.MUSIC -> "曲目列表"
+            SubjectType.BOOK -> "章节与卷册"
+            SubjectType.GAME -> "关卡与章节"
+            SubjectType.ANIME, SubjectType.REAL -> "分集列表"
+        }
+
+    val progressLabel =
+        when (subjectType) {
+            SubjectType.MUSIC -> "已听 $watchedEpisodes / 全 $totalEpisodes 首"
+            SubjectType.BOOK -> "已读 $watchedEpisodes / 全 $totalEpisodes 话"
+            SubjectType.GAME -> "已过 $watchedEpisodes / 全 $totalEpisodes 关"
+            SubjectType.ANIME, SubjectType.REAL -> "已看 $watchedEpisodes / 全 $totalEpisodes 话"
+        }
+
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -1555,13 +2144,13 @@ private fun EpisodesSectionHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "分集列表",
+                text = headerTitle,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
             if (totalEpisodes > 0) {
                 Text(
-                    text = "已看 $watchedEpisodes / 全 $totalEpisodes 话",
+                    text = progressLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1709,15 +2298,53 @@ private fun EpisodeListItem(
                     buildList {
                         if (episode.airdate.isNotBlank()) add("放送：${episode.airdate}")
                         if (episode.duration.isNotBlank()) add(episode.duration)
-                        if (episode.comment > 0) add("吐槽 ${episode.comment}")
                     }
-                if (subtitleParts.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = subtitleParts.joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Spacer(modifier = Modifier.height(3.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (subtitleParts.isNotEmpty()) {
+                        Text(
+                            text = subtitleParts.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
+                    if (episode.comment > 0) {
+                        val isHot = episode.comment >= 50
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color =
+                                if (isHot) {
+                                    Color(0xFFFF9800).copy(alpha = 0.15f)
+                                } else {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                },
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                            ) {
+                                Icon(
+                                    imageVector = if (isHot) Icons.Filled.LocalFireDepartment else Icons.Filled.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    tint = if (isHot) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(11.dp),
+                                )
+                                Text(
+                                    text = "${episode.comment} 吐槽",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isHot) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1780,17 +2407,27 @@ private fun EpisodeGrid(
                                 }
                             "$prefix${episode.sort.toInt()}"
                         }
+                    val cellShape = RoundedCornerShape(8.dp)
                     Box(
                         modifier =
                             Modifier
                                 .weight(1f)
                                 .aspectRatio(1f)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(cellShape)
                                 .background(
                                     if (isWatched) {
                                         MaterialTheme.colorScheme.primaryContainer
                                     } else {
                                         MaterialTheme.colorScheme.surfaceContainerLow
+                                    },
+                                ).then(
+                                    if (isWatched) {
+                                        Modifier
+                                    } else {
+                                        Modifier.border(
+                                            BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                            cellShape,
+                                        )
                                     },
                                 ).combinedClickable(
                                     onClick = { onToggleWatched(episode, !isWatched) },
@@ -1821,6 +2458,18 @@ private fun EpisodeGrid(
                                     modifier = Modifier.size(12.dp),
                                 )
                             }
+                        }
+
+                        if (episode.comment >= 100) {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(3.dp)
+                                        .size(5.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFF9800)),
+                            )
                         }
                     }
                 }
@@ -1916,7 +2565,7 @@ private fun EpisodeDetailBottomSheet(
                 }
             }
 
-            // 2. 放送时间、时长、吐槽数等 Chip 标签
+            // 2. 放送时间与时长 Chip 标签
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -1971,45 +2620,133 @@ private fun EpisodeDetailBottomSheet(
                         }
                     }
                 }
+            }
 
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier =
-                        Modifier.clickable {
-                            launchCustomTab(context, "https://bgm.tv/ep/${episode.id}")
+            // 3. 本集讨论与吐槽聚焦卡片
+            val isHotEpisode = episode.comment >= 50
+            Card(
+                onClick = {
+                    launchCustomTab(context, "https://bgm.tv/ep/${episode.id}")
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor =
+                            if (episode.comment > 0) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            },
+                    ),
+                border =
+                    BorderStroke(
+                        0.8.dp,
+                        if (episode.comment > 0) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                         },
+                    ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f),
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.ChatBubbleOutline,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Text(
-                            text = if (episode.comment > 0) "吐槽 ${episode.comment}" else "吐槽",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(12.dp),
-                        )
+                        Surface(
+                            shape = CircleShape,
+                            color =
+                                if (isHotEpisode) {
+                                    Color(0xFFFF9800)
+                                } else if (episode.comment > 0) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector =
+                                        if (isHotEpisode) {
+                                            Icons.Filled.LocalFireDepartment
+                                        } else {
+                                            Icons.Filled.ChatBubbleOutline
+                                        },
+                                    contentDescription = null,
+                                    tint =
+                                        if (episode.comment > 0) {
+                                            Color.White
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(
+                                    text = "本集讨论与吐槽",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                if (episode.comment > 0) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color =
+                                            if (isHotEpisode) {
+                                                Color(0xFFFF9800)
+                                            } else {
+                                                MaterialTheme.colorScheme.primary
+                                            },
+                                    ) {
+                                        Text(
+                                            text = "${episode.comment} 条吐槽",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text =
+                                    if (episode.comment > 0) {
+                                        "名场面吐槽、细节考察与实时交流"
+                                    } else {
+                                        "暂无讨论，点击抢先发表首条吐槽！"
+                                    },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null,
+                        tint = if (isHotEpisode) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-            // 3. 剧情梗概 (Full desc)
+            // 4. 剧情梗概 (Full desc)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     text = "剧情梗概",
@@ -2017,37 +2754,27 @@ private fun EpisodeDetailBottomSheet(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Text(
-                    text = if (episode.desc.isNotBlank()) episode.desc.trim() else "暂无分集剧情简介",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color =
-                        if (episode.desc.isNotBlank()) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                )
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = if (episode.desc.isNotBlank()) episode.desc.trim() else "暂无分集剧情简介",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color =
+                            if (episode.desc.isNotBlank()) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
             }
 
-            // 4. 前往网页版查看单集讨论按钮
-            OutlinedButton(
-                onClick = {
-                    launchCustomTab(context, "https://bgm.tv/ep/${episode.id}")
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (episode.comment > 0) "在应用内浏览该集讨论与吐槽 (${episode.comment})" else "在应用内浏览该集讨论与吐槽",
-                )
-            }
-
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // 5. "已看过 / 未看" toggle button with instant check-in
             if (isWatched) {
@@ -2085,23 +2812,25 @@ private fun EpisodeDetailBottomSheet(
     }
 }
 
-/** 条目网页版吐槽与讨论入口卡片 */
+/** 章节标签页底部：社区讨论与短评入口 */
 @Composable
-private fun SubjectDiscussionCard(
+private fun EpisodeDiscussionFooter(
     subjectId: Long,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -2114,13 +2843,13 @@ private fun SubjectDiscussionCard(
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    text = "全网讨论与吐槽",
+                    text = "社区讨论与全网短评",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
             }
             Text(
-                text = "使用 Chrome Custom Tabs 在应用内沉浸浏览该条目的全网短评吐槽箱、讨论版话题与长评日志。",
+                text = "单集专属吐槽请直接点击上方分集方块；讨论整部作品剧情伏笔或查看全网口碑，可前往讨论版或短评箱。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -2128,6 +2857,18 @@ private fun SubjectDiscussionCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                FilledTonalButton(
+                    onClick = { launchCustomTab(context, "https://bgm.tv/subject/$subjectId/board") },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Forum,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("讨论版话题", style = MaterialTheme.typography.labelMedium)
+                }
                 OutlinedButton(
                     onClick = { launchCustomTab(context, "https://bgm.tv/subject/$subjectId/comments") },
                     modifier = Modifier.weight(1f),
@@ -2135,24 +2876,177 @@ private fun SubjectDiscussionCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(15.dp),
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("全网吐槽箱")
-                }
-                OutlinedButton(
-                    onClick = { launchCustomTab(context, "https://bgm.tv/subject/$subjectId/topics") },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("讨论版话题")
+                    Text("全网短评箱", style = MaterialTheme.typography.labelMedium)
                 }
             }
+        }
+    }
+}
+
+/** 资料标签页底部：全网讨论与社区交流三大模块 (短评、小组讨论版、长评日志) */
+@Composable
+private fun SubjectCommunitySection(
+    subjectId: Long,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = "全网讨论与社区交流",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                // 1. 全网短评吐槽箱
+                CommunityActionTile(
+                    icon = Icons.Filled.ChatBubbleOutline,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    tag = "即时短评",
+                    tagContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    tagContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    title = "全网短评吐槽箱",
+                    description = "全网观众即时打分、短评吐槽与真实口碑速览",
+                    onClick = {
+                        launchCustomTab(context, "https://bgm.tv/subject/$subjectId/comments")
+                    },
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                // 2. 讨论版交流区
+                CommunityActionTile(
+                    icon = Icons.Filled.Forum,
+                    iconTint = MaterialTheme.colorScheme.secondary,
+                    tag = "深度讨论",
+                    tagContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    tagContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    title = "讨论版交流区",
+                    description = "剧情推理解析、细节伏笔考察、名场面研讨与问答",
+                    onClick = {
+                        launchCustomTab(context, "https://bgm.tv/subject/$subjectId/board")
+                    },
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                // 3. 长评与影评日志
+                CommunityActionTile(
+                    icon = Icons.Filled.RateReview,
+                    iconTint = MaterialTheme.colorScheme.tertiary,
+                    tag = "精选影评",
+                    tagContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    tagContentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    title = "长评与影评日志",
+                    description = "万字深度长评、主创团队访谈考据与全剧终评",
+                    onClick = {
+                        launchCustomTab(context, "https://bgm.tv/subject/$subjectId/reviews")
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** 社区动作条目卡片 */
+@Composable
+private fun CommunityActionTile(
+    icon: ImageVector,
+    iconTint: Color,
+    tag: String,
+    tagContainerColor: Color,
+    tagContentColor: Color,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = Color.Transparent,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = iconTint.copy(alpha = 0.12f),
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = tagContainerColor,
+                        ) {
+                            Text(
+                                text = tag,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = tagContentColor,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                            )
+                        }
+                    }
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                contentDescription = null,
+                tint = iconTint.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }

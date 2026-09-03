@@ -98,25 +98,57 @@ class SubjectDetailViewModel(
         }
     }
 
-    /** 更新条目收藏状态（想看/在看/看过等） */
+    /** 更新条目收藏状态（想看/在看/看过等，支持 0ms 本地即时乐观更新与失败回滚） */
     fun updateCollectionStatus(
         type: CollectionType,
         rate: Int? = null,
         comment: String? = null,
         private: Boolean = false,
     ) {
+        val previousCollection = _uiState.value.collection
+        val resolvedSubjectType = _uiState.value.subject?.type ?: previousCollection?.subjectType ?: 2
+        // 1. 本地立即乐观更新 UI 状态中的 collection
+        val optimisticCollection =
+            previousCollection?.copy(
+                type = type.value,
+                rate = rate ?: previousCollection.rate,
+                comment = comment ?: previousCollection.comment,
+                subjectType = resolvedSubjectType,
+            ) ?: UserCollection(
+                userId = 0L,
+                subjectId = subjectId,
+                subjectType = resolvedSubjectType,
+                rate = rate ?: 0,
+                type = type.value,
+                comment = comment.orEmpty(),
+                epStatus = 0,
+                volStatus = 0,
+                updatedAt = "",
+            )
+        _uiState.update { it.copy(collection = optimisticCollection, error = null) }
+
         viewModelScope.launch {
-            collectionRepository
-                ?.updateCollectionStatus(
+            val result =
+                collectionRepository?.updateCollectionStatus(
                     subjectId = subjectId,
                     type = type,
                     rate = rate,
                     comment = comment,
                     private = private,
-                )?.onError { _, message ->
-                    _uiState.update { it.copy(error = message) }
-                }
+                    subjectType = resolvedSubjectType,
+                )
+            result?.onError { _, message ->
+                // 2. 失败回滚为原状态并提示错误
+                _uiState.update { it.copy(collection = previousCollection, error = message) }
+            }
         }
+    }
+
+    /** 1-tap 快捷追番/移出在看（支持 0ms 本地即时乐观更新与失败回滚） */
+    fun toggleWatching() {
+        val current = _uiState.value.collection
+        val nextType = if (current?.type == CollectionType.DOING.value) CollectionType.DROPPED else CollectionType.DOING
+        updateCollectionStatus(nextType)
     }
 
     /** 单集观看状态打卡（支持即时乐观更新） */
@@ -136,7 +168,7 @@ class SubjectDetailViewModel(
                 ) ?: UserCollection(
                     userId = 0L,
                     subjectId = subjectId,
-                    subjectType = 2,
+                    subjectType = _uiState.value.subject?.type ?: 2,
                     rate = 0,
                     type = CollectionType.DOING.value,
                     comment = "",
