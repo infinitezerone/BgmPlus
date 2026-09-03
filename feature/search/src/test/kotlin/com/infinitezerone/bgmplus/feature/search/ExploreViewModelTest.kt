@@ -359,4 +359,23 @@ class ExploreViewModelTest {
             assertEquals(listOf("赛博朋克"), searchRepository.lastAdvancedRequest?.filter?.tag)
             assertNull(viewModel.uiState.value.selectedMood)
         }
+
+    @Test
+    fun beginLogin_dismissesPromptAndReturnsUrl() =
+        runTest {
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository(initialLoggedIn = false)
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
+            advanceUntilIdle()
+
+            viewModel.toggleWish(sampleSubject.id)
+            assertTrue(viewModel.uiState.value.showLoginPromptDialog)
+
+            val url = viewModel.beginLogin()
+
+            assertFalse(viewModel.uiState.value.showLoginPromptDialog)
+            assertTrue(url.contains("bgm.tv/oauth/authorize"))
+            assertEquals(1, authRepository.beginLoginCallCount)
+        }
 }

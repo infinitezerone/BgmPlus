@@ -1,5 +1,7 @@
 package com.infinitezerone.bgmplus.feature.search
 
+import android.net.Uri
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -64,6 +67,7 @@ import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.feature.search.components.ExploreFilterBottomSheet
 import com.infinitezerone.bgmplus.feature.search.components.ExploreSpotlightCard
 import com.infinitezerone.bgmplus.feature.search.components.WaterfallSubjectCard
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -83,6 +87,7 @@ fun ExploreScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     var showFilterBottomSheet by remember { mutableStateOf(false) }
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -275,7 +280,18 @@ fun ExploreScreen(
                     )
                 },
                 confirmButton = {
-                    Button(onClick = { viewModel.beginLogin(context) }) {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                val authorizeUrl = viewModel.beginLogin()
+                                CustomTabsIntent
+                                    .Builder()
+                                    .setEphemeralBrowsingEnabled(true)
+                                    .build()
+                                    .launchUrl(context, Uri.parse(authorizeUrl))
+                            }
+                        },
+                    ) {
                         Text("立即登录")
                     }
                 },

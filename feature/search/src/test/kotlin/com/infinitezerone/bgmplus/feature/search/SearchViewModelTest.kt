@@ -416,4 +416,21 @@ class SearchViewModelTest {
                     .isEmpty(),
             )
         }
+
+    @Test
+    fun beginLogin_dismissesPromptAndReturnsUrl() =
+        runTest {
+            val authRepo = FakeAuthRepository(initialLoggedIn = false)
+            val viewModel = createViewModel(authRepo = authRepo)
+            advanceUntilIdle()
+
+            viewModel.toggleCollection(sampleSubject, CollectionType.DOING)
+            assertTrue(viewModel.uiState.value.showLoginPromptDialog)
+
+            val url = viewModel.beginLogin()
+
+            assertFalse(viewModel.uiState.value.showLoginPromptDialog)
+            assertTrue(url.contains("bgm.tv/oauth/authorize"))
+            assertEquals(1, authRepo.beginLoginCallCount)
+        }
 }

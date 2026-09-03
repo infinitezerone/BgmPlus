@@ -1,5 +1,7 @@
 package com.infinitezerone.bgmplus.feature.search
 
+import android.net.Uri
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -74,6 +76,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,6 +118,7 @@ import com.infinitezerone.bgmplus.core.designsystem.theme.TypeRealContainer
 import com.infinitezerone.bgmplus.core.model.CollectionType
 import com.infinitezerone.bgmplus.core.model.Subject
 import com.infinitezerone.bgmplus.core.model.SubjectType
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -141,6 +145,7 @@ fun SearchScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(uiState.userMessage) {
         uiState.userMessage?.let { msg ->
@@ -253,7 +258,16 @@ fun SearchScreen(
     if (uiState.showLoginPromptDialog) {
         SearchLoginDialog(
             onDismiss = viewModel::dismissLoginPrompt,
-            onConfirmLogin = { viewModel.beginLogin(context) },
+            onConfirmLogin = {
+                coroutineScope.launch {
+                    val authorizeUrl = viewModel.beginLogin()
+                    CustomTabsIntent
+                        .Builder()
+                        .setEphemeralBrowsingEnabled(true)
+                        .build()
+                        .launchUrl(context, Uri.parse(authorizeUrl))
+                }
+            },
         )
     }
 }

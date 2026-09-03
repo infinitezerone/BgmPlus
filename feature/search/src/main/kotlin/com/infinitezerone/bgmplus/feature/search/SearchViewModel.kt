@@ -1,8 +1,5 @@
 package com.infinitezerone.bgmplus.feature.search
 
-import android.content.Context
-import android.net.Uri
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.infinitezerone.bgmplus.core.common.AppResult
@@ -207,17 +204,10 @@ class SearchViewModel(
         }
     }
 
-    fun beginLogin(context: Context) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(showLoginPromptDialog = false) }
-            val authorizeUrl = authRepository.beginLogin()
-            val customTabsIntent =
-                CustomTabsIntent
-                    .Builder()
-                    .setEphemeralBrowsingEnabled(true)
-                    .build()
-            customTabsIntent.launchUrl(context, Uri.parse(authorizeUrl))
-        }
+    /** 开始 OAuth 授权流程，隐藏提示弹窗并生成授权 URL（由 UI 层通过系统浏览器/Custom Tabs 打开，保持 ViewModel 与 Android Context 零耦合） */
+    suspend fun beginLogin(): String {
+        _uiState.update { it.copy(showLoginPromptDialog = false) }
+        return authRepository.beginLogin()
     }
 
     fun dismissLoginPrompt() {
