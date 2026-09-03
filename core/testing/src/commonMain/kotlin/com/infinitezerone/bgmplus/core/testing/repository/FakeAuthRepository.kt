@@ -5,6 +5,7 @@ import com.infinitezerone.bgmplus.core.data.repository.AuthRepository
 import com.infinitezerone.bgmplus.core.model.UserProfile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class FakeAuthRepository(
@@ -23,6 +24,9 @@ class FakeAuthRepository(
 
     private val _savedAccounts = MutableStateFlow(initialAccounts)
     override val savedAccounts: Flow<List<UserProfile>> = _savedAccounts.asStateFlow()
+
+    private val _isAuthenticating = MutableStateFlow(false)
+    override val isAuthenticating: StateFlow<Boolean> = _isAuthenticating.asStateFlow()
 
     var beginLoginCallCount: Int = 0
         private set
@@ -51,6 +55,10 @@ class FakeAuthRepository(
         _savedAccounts.value = accounts
     }
 
+    fun setAuthenticating(authenticating: Boolean) {
+        _isAuthenticating.value = authenticating
+    }
+
     override suspend fun beginLogin(): String {
         beginLoginCallCount++
         return mockAuthorizeUrl
@@ -61,10 +69,15 @@ class FakeAuthRepository(
         state: String?,
     ): AppResult<Unit> {
         completeLoginCallCount++
-        if (completeLoginResult is AppResult.Success) {
-            _isLoggedIn.value = true
+        _isAuthenticating.value = true
+        return try {
+            if (completeLoginResult is AppResult.Success) {
+                _isLoggedIn.value = true
+            }
+            completeLoginResult
+        } finally {
+            _isAuthenticating.value = false
         }
-        return completeLoginResult
     }
 
     override suspend fun switchAccount(userId: Long) {
@@ -119,5 +132,16 @@ class FakeAuthRepository(
         _isLoggedIn.value = false
         _activeUserId.value = null
         _activeProfile.value = null
+    }
+
+    var refreshProfileCallCount: Int = 0
+        private set
+    var refreshProfileResult: AppResult<UserProfile>? = null
+
+    override suspend fun refreshProfile(): AppResult<UserProfile> {
+        refreshProfileCallCount++
+        return refreshProfileResult
+            ?: _activeProfile.value?.let { AppResult.Success(it) }
+            ?: AppResult.Error(IllegalStateException("No active profile"))
     }
 }

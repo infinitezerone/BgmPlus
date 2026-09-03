@@ -2,7 +2,7 @@ package com.infinitezerone.bgmplus.core.data.repository
 
 import com.infinitezerone.bgmplus.core.common.AppResult
 import com.infinitezerone.bgmplus.core.model.CollectionType
-import com.infinitezerone.bgmplus.core.model.Subject
+import com.infinitezerone.bgmplus.core.model.SearchResult
 import com.infinitezerone.bgmplus.core.testing.data.sampleAirScheduleList
 import com.infinitezerone.bgmplus.core.testing.data.sampleEpisodeList
 import com.infinitezerone.bgmplus.core.testing.data.sampleSubject
@@ -112,12 +112,17 @@ class FakeRepositoriesConsumerTest {
     fun verifyFakeSearchRepositoryInConsumer() =
         runTest {
             val searchRepo = FakeSearchRepository()
-            searchRepo.searchResult = AppResult.Success(listOf(sampleSubject))
+            searchRepo.searchResult = AppResult.Success(SearchResult(total = 1, list = listOf(sampleSubject)))
 
             val result = searchRepo.searchSubjects("芙莉莲")
-            assertIs<AppResult.Success<List<Subject>>>(result)
-            assertEquals(1, result.data.size)
-            assertEquals("葬送のフリーレン", result.data.first().name)
+            assertIs<AppResult.Success<SearchResult>>(result)
+            assertEquals(1, result.data.list.size)
+            assertEquals(
+                "葬送のフリーレン",
+                result.data.list
+                    .first()
+                    .name,
+            )
         }
 
     @Test

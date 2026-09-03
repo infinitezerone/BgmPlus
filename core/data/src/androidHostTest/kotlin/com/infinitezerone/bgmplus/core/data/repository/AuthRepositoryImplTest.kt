@@ -397,4 +397,17 @@ class AuthRepositoryImplTest {
 
             assertTrue(!harness.repository.isLoggedIn.first())
         }
+
+    @Test
+    fun `completeLogin 执行期间 isAuthenticating 状态流正确置位与复位`() =
+        runTest {
+            val harness = harness(apiWith(HttpStatusCode.OK, SUCCESS_BODY))
+            assertEquals(false, harness.repository.isAuthenticating.value)
+
+            val state = harness.repository.beginLogin().substringAfter("state=")
+            val result = harness.repository.completeLogin(code = "code", state = state)
+
+            assertIs<AppResult.Success<*>>(result)
+            assertEquals(false, harness.repository.isAuthenticating.value)
+        }
 }

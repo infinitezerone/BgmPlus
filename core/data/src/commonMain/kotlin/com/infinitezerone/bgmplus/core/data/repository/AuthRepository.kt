@@ -11,6 +11,9 @@ import com.infinitezerone.bgmplus.core.network.BgmPkce
 import com.infinitezerone.bgmplus.core.network.BgmTokenService
 import com.infinitezerone.bgmplus.core.network.TokenProvider
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -21,6 +24,7 @@ interface AuthRepository {
     val isLoggedIn: Flow<Boolean>
     val activeProfile: Flow<UserProfile?>
     val savedAccounts: Flow<List<UserProfile>>
+    val isAuthenticating: StateFlow<Boolean>
 
     /** 生成并持久化一次性 verifier，返回授权 URL（state 为其指纹，交给 Custom Tabs 打开） */
     suspend fun beginLogin(): String
@@ -42,6 +46,9 @@ interface AuthRepository {
 
     /** 退出并注销所有账号，清理全局私有数据 */
     suspend fun logoutAll()
+
+    /** 从远端拉取最新个人资料并落盘保存 */
+    suspend fun refreshProfile(): AppResult<UserProfile>
 }
 
 class AuthRepositoryImpl(
@@ -52,6 +59,9 @@ class AuthRepositoryImpl(
     private val apiService: BangumiApiService? = null,
     private val userDataCleaner: UserDataCleaner? = null,
 ) : AuthRepository {
+    private val _isAuthenticating = MutableStateFlow(false)
+    override val isAuthenticating: StateFlow<Boolean> = _isAuthenticating.asStateFlow()
+
     override val activeUserId: Flow<Long?> =
         userPreferences.userPreferences.map { it.activeUserId.takeIf { id -> id != 0L } }
 
@@ -74,14 +84,15 @@ class AuthRepositoryImpl(
         code: String?,
         state: String?,
     ): AppResult<Unit> {
-        val verifier = userPreferences.userPreferences.first().pendingOAuthVerifier
-        when {
-            code.isNullOrBlank() || state.isNullOrBlank() ->
-                return AppResult.Error(IllegalArgumentException("回调缺少 code 或 state"))
-            verifier.isBlank() || BgmPkce.challenge(verifier) != state ->
-                return AppResult.Error(IllegalStateException("state 校验失败，疑似伪造回调"))
-        }
+        _isAuthenticating.value = true
         return try {
+            val verifier = userPreferences.userPreferences.first().pendingOAuthVerifier
+            when {
+                code.isNullOrBlank() || state.isNullOrBlank() ->
+                    return AppResult.Error(IllegalArgumentException("回调缺少 code 或 state"))
+                verifier.isBlank() || BgmPkce.challenge(verifier) != state ->
+                    return AppResult.Error(IllegalStateException("state 校验失败，疑似伪造回调"))
+            }
             val tokens = tokenService.exchangeCode(code, state, verifier)
             tokenProvider.saveTokens(tokens.userId, tokens.accessToken, tokens.refreshToken)
             tokenProvider.setActiveUser(tokens.userId)
@@ -101,6 +112,8 @@ class AuthRepositoryImpl(
             AppResult.Error(e, "授权码兑换失败：${e.message}")
         } catch (e: SerializationException) {
             AppResult.Error(e, "兑换响应解析失败：${e.message}")
+        } finally {
+            _isAuthenticating.value = false
         }
     }
 
@@ -138,4 +151,17 @@ class AuthRepositoryImpl(
         ) { prefs, hasTokens ->
             prefs.isLoggedIn && hasTokens
         }
+
+    override suspend fun refreshProfile(): AppResult<UserProfile> {
+        val api = apiService ?: return AppResult.Error(IllegalStateException("API 服务未配置"))
+        return try {
+            val profile = api.getMe()
+            userPreferences.saveUserProfile(profile)
+            AppResult.Success(profile)
+        } catch (e: BgmNetworkException) {
+            AppResult.Error(e, "拉取个人资料失败：${e.message}")
+        } catch (e: Exception) {
+            AppResult.Error(e, "个人资料同步异常：${e.message}")
+        }
+    }
 }
