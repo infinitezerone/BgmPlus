@@ -10,6 +10,7 @@ import com.infinitezerone.bgmplus.core.data.repository.CollectionRepository
 import com.infinitezerone.bgmplus.core.model.CollectionType
 import com.infinitezerone.bgmplus.core.model.UserCollection
 import com.infinitezerone.bgmplus.core.model.UserProfile
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,9 +42,27 @@ data class UserCollectionsUiState(
     val activeProfile: UserProfile? = null,
     val selectedType: CollectionType = CollectionType.DOING,
     val selectedSubjectFilter: CollectionSubjectFilter = CollectionSubjectFilter.ALL,
-    val collections: List<UserCollection> = emptyList(),
+    val collectionsByType: Map<CollectionType, List<UserCollection>> = emptyMap(),
+    val loadingTypes: Set<CollectionType> = emptySet(),
+    val errorByType: Map<CollectionType, String?> = emptyMap(),
     val updatingSubjectIds: Set<Long> = emptySet(),
-)
+) {
+    /** 当前选中分类的收藏列表（严格隔离，保证切换分类时绝不串台显示上一个 Tab 的内容） */
+    val collections: List<UserCollection>
+        get() = collectionsByType[selectedType].orEmpty()
+
+    /** 当前选中分类是否正在加载中 */
+    val isCurrentTabLoading: Boolean
+        get() = loadingTypes.contains(selectedType) || (isLoading && !collectionsByType.containsKey(selectedType))
+
+    /** 当前选中分类是否已经加载完成（哪怕内容为空也是已加载） */
+    val isCurrentTabLoaded: Boolean
+        get() = collectionsByType.containsKey(selectedType)
+
+    /** 当前选中分类的专属错误信息 */
+    val currentTabError: String?
+        get() = errorByType[selectedType] ?: error
+}
 
 class UserCollectionsViewModel(
     private val collectionRepository: CollectionRepository,
@@ -51,6 +70,8 @@ class UserCollectionsViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(UserCollectionsUiState())
     val uiState: StateFlow<UserCollectionsUiState> = _uiState.asStateFlow()
+
+    private val loadJobs = mutableMapOf<CollectionType, Job>()
 
     init {
         viewModelScope.launch {
@@ -60,9 +81,20 @@ class UserCollectionsViewModel(
         }
         viewModelScope.launch {
             authRepository.activeProfile.collect { profile ->
+                val previousProfile = _uiState.value.activeProfile
                 _uiState.update { it.copy(activeProfile = profile) }
-                if (profile != null) {
-                    loadCollections(isRefresh = false)
+                if (profile != null && previousProfile != null && previousProfile.id != profile.id) {
+                    loadJobs.values.forEach { it.cancel() }
+                    loadJobs.clear()
+                    _uiState.update { state ->
+                        state.copy(
+                            collectionsByType = emptyMap(),
+                            loadingTypes = emptySet(),
+                            errorByType = emptyMap(),
+                            error = null,
+                        )
+                    }
+                    loadCollectionsForType(_uiState.value.selectedType, isRefresh = false)
                 }
             }
         }
@@ -70,79 +102,116 @@ class UserCollectionsViewModel(
 
     fun setInitialType(type: CollectionType) {
         _uiState.update { it.copy(selectedType = type) }
-        loadCollections(isRefresh = false)
+        loadCollectionsForType(type, isRefresh = false)
     }
 
     fun selectType(type: CollectionType) {
         if (_uiState.value.selectedType != type) {
             _uiState.update { it.copy(selectedType = type) }
-            loadCollections(isRefresh = false)
+            if (!_uiState.value.collectionsByType.containsKey(type)) {
+                loadCollectionsForType(type, isRefresh = false)
+            }
         }
     }
 
     fun selectSubjectFilter(filter: CollectionSubjectFilter) {
         if (_uiState.value.selectedSubjectFilter != filter) {
-            _uiState.update { it.copy(selectedSubjectFilter = filter) }
-            loadCollections(isRefresh = false)
+            loadJobs.values.forEach { it.cancel() }
+            loadJobs.clear()
+            _uiState.update { state ->
+                state.copy(
+                    selectedSubjectFilter = filter,
+                    collectionsByType = emptyMap(),
+                    loadingTypes = emptySet(),
+                    errorByType = emptyMap(),
+                    error = null,
+                )
+            }
+            loadCollectionsForType(_uiState.value.selectedType, isRefresh = false)
         }
     }
 
     fun refresh() {
-        loadCollections(isRefresh = true)
+        loadCollectionsForType(_uiState.value.selectedType, isRefresh = true)
     }
 
-    private fun loadCollections(isRefresh: Boolean = false) {
-        viewModelScope.launch {
-            if (isRefresh) {
-                _uiState.update { it.copy(isRefreshing = true, error = null) }
-            } else {
-                _uiState.update { it.copy(isLoading = true, error = null) }
-            }
-
-            val profile = _uiState.value.activeProfile ?: authRepository.activeProfile.first()
-            if (profile == null) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        error = "请先登录 Bangumi 账号",
-                    )
-                }
-                return@launch
-            }
-
-            val username =
-                profile.username
-                    .ifBlank { profile.id.toString() }
-                    .takeIf { it.isNotBlank() } ?: profile.id.toString()
-            val type = _uiState.value.selectedType
-            val subjectType = _uiState.value.selectedSubjectFilter.typeId
-
-            collectionRepository
-                .fetchUserCollections(
-                    username = username,
-                    subjectType = subjectType,
-                    type = type,
-                    limit = 50,
-                ).onSuccess { data ->
-                    _uiState.update {
-                        it.copy(
-                            collections = data,
+    private fun loadCollectionsForType(
+        type: CollectionType,
+        isRefresh: Boolean = false,
+    ) {
+        loadJobs[type]?.cancel()
+        loadJobs[type] =
+            viewModelScope.launch {
+                if (isRefresh) {
+                    _uiState.update { state ->
+                        state.copy(
+                            isRefreshing = true,
+                            errorByType = state.errorByType - type,
                             error = null,
-                            isLoading = false,
-                            isRefreshing = false,
                         )
                     }
-                }.onError { _, message ->
-                    _uiState.update {
-                        it.copy(
-                            error = message,
-                            isLoading = false,
-                            isRefreshing = false,
+                } else {
+                    _uiState.update { state ->
+                        state.copy(
+                            loadingTypes = state.loadingTypes + type,
+                            isLoading = true,
+                            errorByType = state.errorByType - type,
+                            error = null,
                         )
                     }
                 }
-        }
+
+                val profile = _uiState.value.activeProfile ?: authRepository.activeProfile.first()
+                if (profile == null) {
+                    _uiState.update { state ->
+                        state.copy(
+                            loadingTypes = state.loadingTypes - type,
+                            isLoading = false,
+                            isRefreshing = false,
+                            error = "请先登录 Bangumi 账号",
+                            errorByType = state.errorByType + (type to "请先登录 Bangumi 账号"),
+                        )
+                    }
+                    return@launch
+                }
+
+                val username =
+                    profile.username
+                        .ifBlank { profile.id.toString() }
+                        .takeIf { it.isNotBlank() } ?: profile.id.toString()
+                val subjectType = _uiState.value.selectedSubjectFilter.typeId
+
+                collectionRepository
+                    .fetchUserCollections(
+                        username = username,
+                        subjectType = subjectType,
+                        type = type,
+                        limit = 50,
+                    ).onSuccess { data ->
+                        _uiState.update { state ->
+                            val newLoading = state.loadingTypes - type
+                            state.copy(
+                                collectionsByType = state.collectionsByType + (type to data),
+                                loadingTypes = newLoading,
+                                errorByType = state.errorByType - type,
+                                error = null,
+                                isLoading = newLoading.isNotEmpty(),
+                                isRefreshing = false,
+                            )
+                        }
+                    }.onError { _, message ->
+                        _uiState.update { state ->
+                            val newLoading = state.loadingTypes - type
+                            state.copy(
+                                loadingTypes = newLoading,
+                                errorByType = state.errorByType + (type to message),
+                                error = message,
+                                isLoading = newLoading.isNotEmpty(),
+                                isRefreshing = false,
+                            )
+                        }
+                    }
+            }
     }
 
     fun incrementEpisodeProgress(collection: UserCollection) {
@@ -154,22 +223,32 @@ class UserCollectionsViewModel(
 
         val subjectId = collection.subjectId
         if (_uiState.value.updatingSubjectIds.contains(subjectId)) return
+        val type = CollectionType.fromValue(collection.type)
 
         viewModelScope.launch {
             _uiState.update { state ->
+                val currentList = state.collectionsByType[type]
+                val updatedByType =
+                    if (currentList != null) {
+                        state.collectionsByType + (
+                            type to
+                                currentList.map { item ->
+                                    if (item.subjectId == subjectId) item.copy(epStatus = nextEp) else item
+                                }
+                        )
+                    } else {
+                        state.collectionsByType
+                    }
                 state.copy(
                     updatingSubjectIds = state.updatingSubjectIds + subjectId,
-                    collections =
-                        state.collections.map { item ->
-                            if (item.subjectId == subjectId) item.copy(epStatus = nextEp) else item
-                        },
+                    collectionsByType = updatedByType,
                 )
             }
 
             val result =
                 collectionRepository.updateCollectionStatus(
                     subjectId = subjectId,
-                    type = CollectionType.fromValue(collection.type),
+                    type = type,
                     rate = collection.rate.takeIf { it > 0 },
                     comment = collection.comment.ifBlank { null },
                     epStatus = nextEp,
@@ -177,11 +256,20 @@ class UserCollectionsViewModel(
 
             result.onError { _, message ->
                 _uiState.update { state ->
+                    val currentList = state.collectionsByType[type]
+                    val rollbackByType =
+                        if (currentList != null) {
+                            state.collectionsByType + (
+                                type to
+                                    currentList.map { item ->
+                                        if (item.subjectId == subjectId) item.copy(epStatus = collection.epStatus) else item
+                                    }
+                            )
+                        } else {
+                            state.collectionsByType
+                        }
                     state.copy(
-                        collections =
-                            state.collections.map { item ->
-                                if (item.subjectId == subjectId) item.copy(epStatus = collection.epStatus) else item
-                            },
+                        collectionsByType = rollbackByType,
                         error = message,
                     )
                 }

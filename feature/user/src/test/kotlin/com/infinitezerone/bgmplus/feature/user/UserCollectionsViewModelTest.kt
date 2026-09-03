@@ -166,4 +166,39 @@ class UserCollectionsViewModelTest {
             assertEquals(13, updated.collections.first().epStatus)
             assertEquals(1, collectionRepo.updateCollectionCallCount)
         }
+
+    @Test
+    fun selectType_isolatesTabsAndDoesNotLeakPreviousTabContent() =
+        runTest {
+            val collectionRepo = FakeCollectionRepository()
+            val wishCollection = sampleUserCollection.copy(subjectId = 2002L, type = CollectionType.WISH.value)
+            collectionRepo.sendCollection(sampleUserCollection)
+            collectionRepo.sendCollection(wishCollection)
+            val (viewModel, _) = createViewModel(collectionRepo = collectionRepo)
+
+            viewModel.setInitialType(CollectionType.DOING)
+            val doingState = viewModel.uiState.first { it.collections.isNotEmpty() }
+            assertEquals(1, doingState.collections.size)
+            assertEquals(sampleUserCollection.subjectId, doingState.collections.first().subjectId)
+
+            // 切换到尚未加载过的 WISH
+            viewModel.selectType(CollectionType.WISH)
+
+            // 验证 WISH 的数据隔离，并成功加载对应数据
+            val wishState =
+                viewModel.uiState.first {
+                    it.selectedType == CollectionType.WISH &&
+                        it.collections.any { c -> c.subjectId == 2002L }
+                }
+            assertEquals(1, wishState.collections.size)
+            assertEquals(2002L, wishState.collections.first().subjectId)
+
+            // 切回已缓存的 DOING，应立即命中本地缓存，无需重新拉取网络
+            viewModel.selectType(CollectionType.DOING)
+            val cachedDoingState = viewModel.uiState.value
+            assertEquals(CollectionType.DOING, cachedDoingState.selectedType)
+            assertEquals(1, cachedDoingState.collections.size)
+            assertEquals(sampleUserCollection.subjectId, cachedDoingState.collections.first().subjectId)
+            assertEquals(2, collectionRepo.fetchUserCollectionsCallCount)
+        }
 }

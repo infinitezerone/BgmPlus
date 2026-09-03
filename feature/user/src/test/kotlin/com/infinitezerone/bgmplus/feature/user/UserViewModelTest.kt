@@ -6,6 +6,7 @@ import com.infinitezerone.bgmplus.core.testing.data.sampleUserProfile
 import com.infinitezerone.bgmplus.core.testing.data.sampleUserProfileAlt
 import com.infinitezerone.bgmplus.core.testing.datastore.createTestUserPreferencesDataSource
 import com.infinitezerone.bgmplus.core.testing.repository.FakeAuthRepository
+import com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeScheduleRepository
 import com.infinitezerone.bgmplus.core.testing.repository.FakeSyncManager
 import com.infinitezerone.bgmplus.core.testing.util.MainDispatcherRule
@@ -28,6 +29,7 @@ class UserViewModelTest {
     private fun createViewModel(
         authRepo: FakeAuthRepository = FakeAuthRepository(initialLoggedIn = false),
         scheduleRepo: FakeScheduleRepository = FakeScheduleRepository(),
+        collectionRepo: FakeCollectionRepository = FakeCollectionRepository(),
         syncManager: FakeSyncManager = FakeSyncManager(),
     ): Pair<UserViewModel, FakeScheduleRepository> {
         val userPrefs = createTestUserPreferencesDataSource()
@@ -35,6 +37,7 @@ class UserViewModelTest {
             UserViewModel(
                 authRepository = authRepo,
                 scheduleRepository = scheduleRepo,
+                collectionRepository = collectionRepo,
                 userPreferencesDataSource = userPrefs,
                 syncManager = syncManager,
             )
@@ -175,5 +178,59 @@ class UserViewModelTest {
 
             assertTrue(callbackSuccess)
             assertEquals(1, scheduleRepo.syncBangumiDataCallCount)
+        }
+
+    @Test
+    fun loggedInState_loadsCollectionCountsFromRepository() =
+        runTest {
+            val authRepo =
+                FakeAuthRepository(
+                    initialLoggedIn = true,
+                    initialProfile = sampleUserProfile,
+                )
+            val collectionRepo = FakeCollectionRepository()
+            collectionRepo.sendCollection(com.infinitezerone.bgmplus.core.testing.data.sampleUserCollection)
+            val (viewModel, _) = createViewModel(authRepo = authRepo, collectionRepo = collectionRepo)
+
+            val state = viewModel.uiState.first { it.collectionCounts.isNotEmpty() }
+            assertEquals(1, state.collectionCounts[com.infinitezerone.bgmplus.core.model.CollectionType.DOING])
+        }
+
+    @Test
+    fun isAuthenticating_updatesUiStateAccordingly() =
+        runTest {
+            val authRepo = FakeAuthRepository(initialLoggedIn = false)
+            val (viewModel, _) = createViewModel(authRepo = authRepo)
+
+            assertFalse(viewModel.uiState.value.isAuthenticating)
+
+            authRepo.setAuthenticating(true)
+            val authenticatingState = viewModel.uiState.first { it.isAuthenticating }
+            assertTrue(authenticatingState.isAuthenticating)
+
+            authRepo.setAuthenticating(false)
+            val idleState = viewModel.uiState.first { !it.isAuthenticating }
+            assertFalse(idleState.isAuthenticating)
+        }
+
+    @Test
+    fun refresh_refreshesProfileAndCollectionCountsWhenLoggedIn() =
+        runTest {
+            val authRepo =
+                FakeAuthRepository(
+                    initialLoggedIn = true,
+                    initialProfile = sampleUserProfile,
+                )
+            val collectionRepo = FakeCollectionRepository()
+            collectionRepo.sendCollection(com.infinitezerone.bgmplus.core.testing.data.sampleUserCollection)
+            val (viewModel, _) = createViewModel(authRepo = authRepo, collectionRepo = collectionRepo)
+
+            var refreshDone = false
+            viewModel.refresh { success ->
+                refreshDone = success
+            }
+
+            assertTrue(refreshDone)
+            assertEquals(1, authRepo.refreshProfileCallCount)
         }
 }

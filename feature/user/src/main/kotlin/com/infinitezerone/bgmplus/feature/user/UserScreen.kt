@@ -2,6 +2,7 @@ package com.infinitezerone.bgmplus.feature.user
 
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,20 +28,20 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.ManageAccounts
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PauseCircleOutline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayCircleOutline
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
@@ -50,14 +51,16 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -66,6 +69,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -76,17 +80,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.infinitezerone.bgmplus.core.designsystem.theme.ActionCollect
 import com.infinitezerone.bgmplus.core.designsystem.theme.BgmPlusTheme
 import com.infinitezerone.bgmplus.core.designsystem.theme.ThemePreviews
+import com.infinitezerone.bgmplus.core.designsystem.theme.WishOrange
 import com.infinitezerone.bgmplus.core.model.CollectionType
 import com.infinitezerone.bgmplus.core.model.SyncInterval
 import com.infinitezerone.bgmplus.core.model.UserAvatar
@@ -95,6 +103,8 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 private const val BGM_HOME_URL = "https://bgm.tv"
+private const val BGM_WIKI_URL = "https://bgm.tv/wiki"
+private const val PROJECT_GITHUB_URL = "https://github.com/infinitezerone/BgmPlus"
 
 @Composable
 fun UserScreen(
@@ -107,15 +117,34 @@ fun UserScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    val openWebUrl = { url: String ->
+        CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url))
+    }
+
     UserScreenContent(
         uiState = uiState,
         onLogin = { viewModel.beginLogin(context) },
+        onRefresh = {
+            viewModel.refresh { success ->
+                coroutineScope.launch {
+                    if (success) {
+                        snackbarHostState.showSnackbar(
+                            if (uiState.isLoggedIn) "个人中心已刷新 ✨" else "已刷新（登录后可同步个人云端数据）",
+                        )
+                    } else {
+                        snackbarHostState.showSnackbar("刷新失败，请检查网络设置")
+                    }
+                }
+            }
+        },
         onSwitchAccount = viewModel::switchAccount,
         onLogoutCurrent = viewModel::logout,
         onLogoutAccount = viewModel::logout,
         onLogoutAll = viewModel::logoutAll,
-        onOpenBgmWeb = {
-            CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(BGM_HOME_URL))
+        onOpenWebUrl = openWebUrl,
+        onOpenUserWeb = { username ->
+            val url = if (username.isNotBlank()) "$BGM_HOME_URL/user/$username" else BGM_HOME_URL
+            openWebUrl(url)
         },
         onClearCache = {
             coroutineScope.launch {
@@ -145,11 +174,13 @@ fun UserScreen(
 fun UserScreenContent(
     uiState: UserUiState,
     onLogin: () -> Unit,
+    onRefresh: () -> Unit,
     onSwitchAccount: (Long) -> Unit,
     onLogoutCurrent: () -> Unit,
     onLogoutAccount: (Long) -> Unit,
     onLogoutAll: () -> Unit,
-    onOpenBgmWeb: () -> Unit,
+    onOpenWebUrl: (String) -> Unit,
+    onOpenUserWeb: (String) -> Unit,
     onClearCache: () -> Unit,
     onCollectionClick: (CollectionType) -> Unit,
     onSelectSyncInterval: (SyncInterval) -> Unit,
@@ -168,13 +199,26 @@ fun UserScreenContent(
             TopAppBar(
                 title = {
                     Text(
-                        text = "👤 个人中心",
+                        text = "个人中心",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                     )
                 },
                 actions = {
                     if (uiState.isLoggedIn) {
+                        IconButton(
+                            onClick = {
+                                val username = uiState.activeProfile?.username.orEmpty()
+                                onOpenUserWeb(username)
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                contentDescription = "在浏览器中查看个人主页",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
                         IconButton(onClick = { showAccountSheet = true }) {
                             if (uiState.savedAccounts.size > 1) {
                                 BadgedBox(
@@ -207,66 +251,91 @@ fun UserScreenContent(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         modifier = modifier,
     ) { innerPadding ->
-        LazyColumn(
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh = onRefresh,
             modifier =
                 Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (!uiState.isLoggedIn) {
-                item(key = "unauthenticated_card") {
-                    UnauthenticatedCard(onLogin = onLogin)
-                }
-            } else {
-                item(key = "profile_header") {
-                    UserProfileHeaderCard(
-                        profile = uiState.activeProfile,
-                        savedAccountsCount = uiState.savedAccounts.size,
-                        onManageAccountsClick = { showAccountSheet = true },
-                        onLogoutCurrentClick = { showLogoutCurrentDialog = true },
-                    )
-                }
-
-                if (uiState.savedAccounts.size > 1) {
-                    item(key = "multi_account_card") {
-                        MultiAccountQuickCard(
-                            accounts = uiState.savedAccounts,
-                            activeProfile = uiState.activeProfile,
-                            onSwitchAccount = onSwitchAccount,
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (!uiState.isLoggedIn) {
+                    item(key = "unauthenticated_card") {
+                        UnauthenticatedCard(
+                            onLogin = onLogin,
+                            isAuthenticating = uiState.isAuthenticating,
+                        )
+                    }
+                } else {
+                    item(key = "profile_header") {
+                        UserProfileHeaderCard(
+                            profile = uiState.activeProfile,
+                            savedAccountsCount = uiState.savedAccounts.size,
                             onManageAccountsClick = { showAccountSheet = true },
+                            onOpenUserWeb = {
+                                val username = uiState.activeProfile?.username.orEmpty()
+                                onOpenUserWeb(username)
+                            },
+                        )
+                    }
+
+                    if (uiState.savedAccounts.size > 1) {
+                        item(key = "multi_account_card") {
+                            MultiAccountQuickCard(
+                                accounts = uiState.savedAccounts,
+                                activeProfile = uiState.activeProfile,
+                                onSwitchAccount = onSwitchAccount,
+                                onManageAccountsClick = { showAccountSheet = true },
+                                onAddAccountClick = {
+                                    showAccountSheet = false
+                                    onLogin()
+                                },
+                            )
+                        }
+                    }
+
+                    item(key = "collections_overview") {
+                        CollectionOverviewCard(
+                            isLoggedIn = true,
+                            collectionCounts = uiState.collectionCounts,
+                            isCountsLoading = uiState.isCountsLoading,
+                            onCollectionClick = onCollectionClick,
                         )
                     }
                 }
 
-                item(key = "collections_overview") {
-                    CollectionOverviewCard(
-                        isLoggedIn = true,
-                        onCollectionClick = onCollectionClick,
+                if (!uiState.isLoggedIn) {
+                    item(key = "collections_overview_placeholder") {
+                        CollectionOverviewCard(
+                            isLoggedIn = false,
+                            collectionCounts = emptyMap(),
+                            isCountsLoading = false,
+                            onCollectionClick = onCollectionClick,
+                        )
+                    }
+                }
+
+                item(key = "settings_and_about") {
+                    SettingsSection(
+                        isLoggedIn = uiState.isLoggedIn,
+                        activeProfile = uiState.activeProfile,
+                        savedAccountsCount = uiState.savedAccounts.size,
+                        syncInterval = uiState.syncInterval,
+                        lastSyncTimestamp = uiState.lastSyncTimestamp,
+                        isSyncing = uiState.isSyncing,
+                        onOpenSyncDialog = { showSyncIntervalDialog = true },
+                        onSyncNow = onSyncNow,
+                        onOpenWebUrl = onOpenWebUrl,
+                        onClearCache = onClearCache,
+                        onLogoutCurrentClick = { showLogoutCurrentDialog = true },
+                        onLogoutAllClick = { showLogoutAllDialog = true },
                     )
                 }
-            }
-
-            if (!uiState.isLoggedIn) {
-                item(key = "collections_overview_placeholder") {
-                    CollectionOverviewCard(
-                        isLoggedIn = false,
-                        onCollectionClick = onCollectionClick,
-                    )
-                }
-            }
-
-            item(key = "settings_and_about") {
-                SettingsAndAboutCard(
-                    syncInterval = uiState.syncInterval,
-                    lastSyncTimestamp = uiState.lastSyncTimestamp,
-                    isSyncing = uiState.isSyncing,
-                    onOpenSyncDialog = { showSyncIntervalDialog = true },
-                    onSyncNow = onSyncNow,
-                    onOpenBgmWeb = onOpenBgmWeb,
-                    onClearCache = onClearCache,
-                )
             }
         }
     }
@@ -397,7 +466,7 @@ fun UserScreenContent(
             title = { Text(text = "退出所有账号") },
             text = {
                 Text(
-                    text = "确定要退出全部已登录的 Bangumi 账号吗？设备上所有加密凭据与缓存将被安全清除。",
+                    text = "确定要退出全部已登录的 Bangumi 账号吗？设备上的登录状态与本地缓存将被清除。",
                 )
             },
             confirmButton = {
@@ -425,51 +494,55 @@ fun UserScreenContent(
     }
 }
 
+// ---------------- Components ----------------
+
 @Composable
 private fun UnauthenticatedCard(
     onLogin: () -> Unit,
+    isAuthenticating: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(64.dp),
+                modifier = Modifier.size(68.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Filled.AccountCircle,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier.size(40.dp),
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "开启 Bangumi 同步",
+                text = "连接你的 Bangumi 账号",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.ExtraBold,
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "登录后解锁多端追番进度同步与安全多账号管理",
+                text = "随时随地同步多端追番进度、条目收藏与打卡记录",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -477,39 +550,70 @@ private fun UnauthenticatedCard(
             ) {
                 AuthAdvantageItem(
                     icon = Icons.Filled.Sync,
-                    title = "追番进度同步",
-                    description = "实时同步在看、想看与打卡记录，多端不遗漏",
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    title = "追番进度多端同步",
+                    description = "在看、想看与章节进度秒级同步至 Bangumi 云端，多端不遗漏",
                 )
                 AuthAdvantageItem(
-                    icon = Icons.Filled.Security,
-                    title = "硬件级加密安全",
-                    description = "OAuth 凭据存储于 Android Keystore 安全硬件，无明文泄露风险",
+                    icon = Icons.Filled.BookmarkBorder,
+                    iconTint = MaterialTheme.colorScheme.secondary,
+                    title = "条目收藏与评分",
+                    description = "全量同步想看、在看与评分数据，随时整理追番清单",
                 )
                 AuthAdvantageItem(
                     icon = Icons.Filled.SwapHoriz,
-                    title = "多账号无缝切换",
-                    description = "支持绑定多个 Bangumi 账号，一键即时切换",
+                    iconTint = MaterialTheme.colorScheme.tertiary,
+                    title = "多账号无缝快捷切换",
+                    description = "支持绑定多个 Bangumi 账号，一键即时切换马甲与主号",
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
             Button(
                 onClick = onLogin,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                enabled = !isAuthenticating,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Login,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "通过 OAuth 授权登录",
-                    fontWeight = FontWeight.SemiBold,
-                )
+                if (isAuthenticating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "正在验证授权并同步...",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Login,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "通过 Bangumi OAuth 授权登录",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "💡 离线模式下，您仍可正常使用当季每周放送表与条目检索功能",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -517,6 +621,7 @@ private fun UnauthenticatedCard(
 @Composable
 private fun AuthAdvantageItem(
     icon: ImageVector,
+    iconTint: Color,
     title: String,
     description: String,
     modifier: Modifier = Modifier,
@@ -527,20 +632,20 @@ private fun AuthAdvantageItem(
                 .fillMaxWidth()
                 .background(
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                 ).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            modifier = Modifier.size(36.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = iconTint.copy(alpha = 0.14f),
+            modifier = Modifier.size(38.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    tint = iconTint,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -567,7 +672,7 @@ private fun UserProfileHeaderCard(
     profile: UserProfile?,
     savedAccountsCount: Int,
     onManageAccountsClick: () -> Unit,
-    onLogoutCurrentClick: () -> Unit,
+    onOpenUserWeb: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sign = profile?.sign.orEmpty()
@@ -575,11 +680,12 @@ private fun UserProfileHeaderCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -588,13 +694,12 @@ private fun UserProfileHeaderCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
+                // 头像：双层内描边与外环
+                Surface(
+                    shape = CircleShape,
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(76.dp),
                 ) {
                     val avatarUrl = profile?.avatar?.bestAvatar.orEmpty()
                     if (avatarUrl.isNotBlank()) {
@@ -605,12 +710,14 @@ private fun UserProfileHeaderCard(
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
-                        Icon(
-                            imageVector = Icons.Filled.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(40.dp),
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Filled.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(42.dp),
+                            )
+                        }
                     }
                 }
 
@@ -620,7 +727,7 @@ private fun UserProfileHeaderCard(
                     Text(
                         text = profile?.displayName?.ifBlank { "Bangumi 用户" } ?: "Bangumi 用户",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -650,6 +757,18 @@ private fun UserProfileHeaderCard(
                             )
                         }
 
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                        ) {
+                            Text(
+                                text = if (profile?.userGroup == 11) "管理员" else "Bangumi 会员",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+
                         if (savedAccountsCount > 1) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
@@ -668,7 +787,7 @@ private fun UserProfileHeaderCard(
                                     )
                                     Spacer(modifier = Modifier.width(2.dp))
                                     Text(
-                                        text = "$savedAccountsCount 个账号",
+                                        text = "$savedAccountsCount 个账号 ▾",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer,
                                     )
@@ -679,45 +798,65 @@ private fun UserProfileHeaderCard(
                 }
             }
 
-            if (sign.isNotBlank()) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxWidth(),
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 签名气泡
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.FormatQuote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = sign,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Filled.FormatQuote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = sign.ifBlank { "这个人很神秘，什么都没写~" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color =
+                            if (sign.isNotBlank()) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            },
+                        fontStyle = if (sign.isBlank()) FontStyle.Italic else FontStyle.Normal,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // 核心快捷动作条（替代原先粗暴突兀的居中大退出按钮）
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
+                FilledTonalButton(
+                    onClick = onOpenUserWeb,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "个人主页 ↗", style = MaterialTheme.typography.labelLarge)
+                }
                 OutlinedButton(
                     onClick = onManageAccountsClick,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.ManageAccounts,
@@ -725,20 +864,7 @@ private fun UserProfileHeaderCard(
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "账号管理")
-                }
-                OutlinedButton(
-                    onClick = onLogoutCurrentClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Logout,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "退出当前")
+                    Text(text = "账号管理", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
@@ -751,11 +877,17 @@ private fun MultiAccountQuickCard(
     activeProfile: UserProfile?,
     onSwitchAccount: (Long) -> Unit,
     onManageAccountsClick: () -> Unit,
+    onAddAccountClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OutlinedCard(
+    Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -763,101 +895,153 @@ private fun MultiAccountQuickCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "快速切换账号",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                TextButton(onClick = onManageAccountsClick) {
-                    Text(text = "管理全部 (${accounts.size})")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.SwapHoriz,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "账号快捷切换",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                TextButton(
+                    onClick = onManageAccountsClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                ) {
+                    Text(text = "管理 (${accounts.size}) ↗", style = MaterialTheme.typography.labelMedium)
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 accounts.forEach { account ->
                     val isActive = account.id == activeProfile?.id
-                    Row(
+                    Surface(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .background(
-                                    color =
-                                        if (isActive) {
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                                        } else {
-                                            MaterialTheme.colorScheme.surfaceContainerLow
-                                        },
-                                    shape = RoundedCornerShape(10.dp),
-                                ).clickable(enabled = !isActive) { onSwitchAccount(account.id) }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            val avatarUrl = account.avatar?.bestAvatar.orEmpty()
-                            if (avatarUrl.isNotBlank()) {
-                                AsyncImage(
-                                    model = avatarUrl,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
+                                .then(
+                                    if (!isActive) {
+                                        Modifier.clickable { onSwitchAccount(account.id) }
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
+                        shape = RoundedCornerShape(12.dp),
+                        color =
+                            if (isActive) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
                             } else {
-                                Icon(
-                                    imageVector = Icons.Filled.Person,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(10.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = account.displayName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = "@${account.username}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-
-                        if (isActive) {
+                                MaterialTheme.colorScheme.surfaceContainerLow
+                            },
+                        border =
+                            if (isActive) {
+                                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                            } else {
+                                null
+                            },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.primary,
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(38.dp),
                             ) {
+                                val avatarUrl = account.avatar?.bestAvatar.orEmpty()
+                                if (avatarUrl.isNotBlank()) {
+                                    AsyncImage(
+                                        model = avatarUrl,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                } else {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Person,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "当前使用",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    text = account.displayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = "@${account.username}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                        } else {
-                            Text(
-                                text = "点击切换",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
+
+                            if (isActive) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(12.dp),
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = "当前活跃",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "轻触切换",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            TextButton(
+                onClick = onAddAccountClick,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PersonAdd,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = "+ 添加其他 Bangumi 账号", style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -866,16 +1050,29 @@ private fun MultiAccountQuickCard(
 @Composable
 private fun CollectionOverviewCard(
     isLoggedIn: Boolean,
+    collectionCounts: Map<CollectionType, Int>,
+    isCountsLoading: Boolean,
     onCollectionClick: (CollectionType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    fun formatCount(type: CollectionType): String {
+        if (!isLoggedIn) return "-"
+        val count = collectionCounts[type]
+        return when {
+            count != null -> count.toString()
+            isCountsLoading -> "…"
+            else -> "0"
+        }
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
@@ -883,28 +1080,51 @@ private fun CollectionOverviewCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "追番与收藏概览",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = if (isLoggedIn) "Bangumi 云端" else "未同步",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "我的追番与收藏",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+
+                if (isLoggedIn) {
+                    TextButton(
+                        onClick = { onCollectionClick(CollectionType.DOING) },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = "完整列表 ↗",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ) {
+                        Text(
+                            text = "未登录",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 第一行：三大核心状态（在看、想看、看过）
+            // 第一排：三大活跃追番状态（在看、想看、看过）
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 CollectionStatusItem(
                     label = "在看",
-                    count = if (isLoggedIn) "12" else "-",
+                    tag = "追番中",
+                    count = formatCount(CollectionType.DOING),
                     icon = Icons.Filled.PlayCircleOutline,
                     tint = MaterialTheme.colorScheme.primary,
                     onClick = { onCollectionClick(CollectionType.DOING) },
@@ -912,17 +1132,19 @@ private fun CollectionOverviewCard(
                 )
                 CollectionStatusItem(
                     label = "想看",
-                    count = if (isLoggedIn) "28" else "-",
+                    tag = "愿望单",
+                    count = formatCount(CollectionType.WISH),
                     icon = Icons.Filled.BookmarkBorder,
-                    tint = MaterialTheme.colorScheme.tertiary,
+                    tint = WishOrange,
                     onClick = { onCollectionClick(CollectionType.WISH) },
                     modifier = Modifier.weight(1f),
                 )
                 CollectionStatusItem(
                     label = "看过",
-                    count = if (isLoggedIn) "86" else "-",
+                    tag = "已完成",
+                    count = formatCount(CollectionType.COLLECT),
                     icon = Icons.Filled.CheckCircleOutline,
-                    tint = MaterialTheme.colorScheme.secondary,
+                    tint = ActionCollect,
                     onClick = { onCollectionClick(CollectionType.COLLECT) },
                     modifier = Modifier.weight(1f),
                 )
@@ -930,14 +1152,15 @@ private fun CollectionOverviewCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 第二行：补充状态（搁置、抛弃）
+            // 第二排：两大归档状态（搁置、抛弃）
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 CollectionStatusItem(
                     label = "搁置",
-                    count = if (isLoggedIn) "3" else "-",
+                    tag = null,
+                    count = formatCount(CollectionType.ON_HOLD),
                     icon = Icons.Filled.PauseCircleOutline,
                     tint = MaterialTheme.colorScheme.outline,
                     onClick = { onCollectionClick(CollectionType.ON_HOLD) },
@@ -945,19 +1168,27 @@ private fun CollectionOverviewCard(
                 )
                 CollectionStatusItem(
                     label = "抛弃",
-                    count = if (isLoggedIn) "1" else "-",
+                    tag = null,
+                    count = formatCount(CollectionType.DROPPED),
                     icon = Icons.Filled.Cancel,
-                    tint = MaterialTheme.colorScheme.error,
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                     onClick = { onCollectionClick(CollectionType.DROPPED) },
                     modifier = Modifier.weight(1f),
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 贴心功能引导（替代草稿占位文案）
             Text(
-                text = "💡 追番列表与详细进度管理功能将在后续版本持续扩展",
+                text =
+                    if (isLoggedIn) {
+                        "💡 点击任意分类可直达条目列表、查看打卡进度并支持多维度筛选"
+                    } else {
+                        "💡 登录 Bangumi 账号后，即可一键实时同步全量在看、想看与评分记录"
+                    },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
             )
         }
     }
@@ -966,158 +1197,288 @@ private fun CollectionOverviewCard(
 @Composable
 private fun CollectionStatusItem(
     label: String,
+    tag: String?,
     count: String,
     icon: ImageVector,
-    tint: androidx.compose.ui.graphics.Color,
+    tint: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(24.dp),
-            )
+            Surface(
+                shape = CircleShape,
+                color = tint.copy(alpha = 0.12f),
+                modifier = Modifier.size(34.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(6.dp))
+
             Text(
                 text = count,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = tint,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (tag != null) {
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "· $tag",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = tint,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SettingsAndAboutCard(
+private fun SettingsSection(
+    isLoggedIn: Boolean,
+    activeProfile: UserProfile?,
+    savedAccountsCount: Int,
     syncInterval: SyncInterval,
     lastSyncTimestamp: Long,
     isSyncing: Boolean,
     onOpenSyncDialog: () -> Unit,
     onSyncNow: () -> Unit,
-    onOpenBgmWeb: () -> Unit,
+    onOpenWebUrl: (String) -> Unit,
     onClearCache: () -> Unit,
+    onLogoutCurrentClick: () -> Unit,
+    onLogoutAllClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val lastSyncText =
         if (lastSyncTimestamp == 0L) {
-            "未检测"
+            "尚未同步"
         } else {
-            "已同步"
+            "已是最新"
         }
 
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            Text(
-                text = "通用设置与关于",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-            )
+        // Group 1: 播放源与数据同步
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        ) {
+            Column(modifier = Modifier.padding(vertical = 10.dp)) {
+                Text(
+                    text = "数据同步与存储",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
+                )
 
-            SettingsItemRow(
-                icon = Icons.Filled.Sync,
-                iconTint = MaterialTheme.colorScheme.primary,
-                title = "播放源后台同步",
-                subtitle = "频率: ${syncInterval.displayName} · 状态: $lastSyncText",
-                trailing = {
-                    if (isSyncing) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        OutlinedButton(
-                            onClick = onSyncNow,
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                            shape = RoundedCornerShape(8.dp),
-                        ) {
-                            Text("立即检查", style = MaterialTheme.typography.labelSmall)
+                SettingsItemRow(
+                    icon = Icons.Filled.Sync,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    title = "播放源自动同步",
+                    subtitle = "周期：${syncInterval.displayName}",
+                    onClick = onOpenSyncDialog,
+                )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                )
+
+                SettingsItemRow(
+                    icon = Icons.Filled.CloudQueue,
+                    iconTint = MaterialTheme.colorScheme.secondary,
+                    title = "立即同步放送源",
+                    subtitle = "状态：$lastSyncText · bgm-data",
+                    trailing = {
+                        if (isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            OutlinedButton(
+                                onClick = onSyncNow,
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Text("立即检查", style = MaterialTheme.typography.labelSmall)
+                            }
                         }
-                    }
-                },
-                onClick = onOpenSyncDialog,
-            )
+                    },
+                    onClick = if (!isSyncing) onSyncNow else null,
+                )
 
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 18.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-            )
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                )
 
-            SettingsItemRow(
-                icon = Icons.Filled.Palette,
-                iconTint = MaterialTheme.colorScheme.primary,
-                title = "外观与主题",
-                subtitle = "跟随系统 · Material You 动态取色已启用",
-            )
+                SettingsItemRow(
+                    icon = Icons.Filled.CleaningServices,
+                    iconTint = MaterialTheme.colorScheme.tertiary,
+                    title = "清理本地缓存",
+                    subtitle = "清理离线网络图片与临时缓存数据",
+                    onClick = onClearCache,
+                )
+            }
+        }
 
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 18.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-            )
+        // Group 2: 社区与关于
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        ) {
+            Column(modifier = Modifier.padding(vertical = 10.dp)) {
+                Text(
+                    text = "关于与社区服务",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
+                )
 
-            SettingsItemRow(
-                icon = Icons.Filled.CleaningServices,
-                iconTint = MaterialTheme.colorScheme.secondary,
-                title = "清除本地缓存",
-                subtitle = "清理图片离线缓存与临时数据",
-                onClick = onClearCache,
-            )
+                SettingsItemRow(
+                    icon = Icons.Filled.Language,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    title = "访问 Bangumi 官网",
+                    subtitle = "bgm.tv · ACG 动漫数据库与社区",
+                    trailing = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = "打开网页",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = { onOpenWebUrl(BGM_HOME_URL) },
+                )
 
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 18.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-            )
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                )
 
-            SettingsItemRow(
-                icon = Icons.Filled.Info,
-                iconTint = MaterialTheme.colorScheme.tertiary,
-                title = "关于 BgmPlus",
-                subtitle = "v1.0.0 · 现代 Material 3 Bangumi 客户端",
-            )
+                SettingsItemRow(
+                    icon = Icons.Filled.Info,
+                    iconTint = MaterialTheme.colorScheme.secondary,
+                    title = "Bangumi 维基协作指南",
+                    subtitle = "条目收录规范与编辑守则",
+                    trailing = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = "打开网页",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = { onOpenWebUrl(BGM_WIKI_URL) },
+                )
 
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 18.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-            )
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                )
 
-            SettingsItemRow(
-                icon = Icons.Filled.Language,
-                iconTint = MaterialTheme.colorScheme.primary,
-                title = "访问 Bangumi 官网",
-                subtitle = "bgm.tv · 番组计划",
-                trailing = {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = "打开网页",
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                SettingsItemRow(
+                    icon = Icons.Filled.BookmarkBorder,
+                    iconTint = MaterialTheme.colorScheme.tertiary,
+                    title = "BgmPlus 客户端",
+                    subtitle = "v1.0.0 · Apache-2.0 开源协议",
+                    trailing = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = "打开网页",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = { onOpenWebUrl(PROJECT_GITHUB_URL) },
+                )
+            }
+        }
+
+        // Group 3: 账号与登录安全 (仅在已登录状态下展示在最底部)
+        if (isLoggedIn) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+            ) {
+                Column(modifier = Modifier.padding(vertical = 10.dp)) {
+                    Text(
+                        text = "账号设置",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
                     )
-                },
-                onClick = onOpenBgmWeb,
-            )
+
+                    val usernameText = activeProfile?.username.orEmpty().ifBlank { activeProfile?.id?.toString().orEmpty() }
+                    SettingsItemRow(
+                        icon = Icons.AutoMirrored.Filled.Logout,
+                        iconTint = MaterialTheme.colorScheme.error,
+                        title = "退出当前账号",
+                        subtitle = "注销当前登录 (@$usernameText)，保留其他已存账号",
+                        onClick = onLogoutCurrentClick,
+                    )
+
+                    if (savedAccountsCount > 1) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 18.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                        )
+
+                        SettingsItemRow(
+                            icon = Icons.Filled.DeleteOutline,
+                            iconTint = MaterialTheme.colorScheme.error,
+                            title = "退出所有已存账号",
+                            subtitle = "清除本机全部登录账号与本地缓存",
+                            onClick = onLogoutAllClick,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -1463,11 +1824,13 @@ private fun UserScreenUnauthenticatedPreview() {
         UserScreenContent(
             uiState = UserUiState(isLoggedIn = false),
             onLogin = {},
+            onRefresh = {},
             onSwitchAccount = {},
             onLogoutCurrent = {},
             onLogoutAccount = {},
             onLogoutAll = {},
-            onOpenBgmWeb = {},
+            onOpenWebUrl = {},
+            onOpenUserWeb = {},
             onClearCache = {},
             onCollectionClick = {},
             onSelectSyncInterval = {},
@@ -1487,13 +1850,23 @@ private fun UserScreenSingleAccountPreview() {
                     isLoggedIn = true,
                     activeProfile = previewProfile1,
                     savedAccounts = listOf(previewProfile1),
+                    collectionCounts =
+                        mapOf(
+                            CollectionType.DOING to 8,
+                            CollectionType.WISH to 24,
+                            CollectionType.COLLECT to 142,
+                            CollectionType.ON_HOLD to 3,
+                            CollectionType.DROPPED to 1,
+                        ),
                 ),
             onLogin = {},
+            onRefresh = {},
             onSwitchAccount = {},
             onLogoutCurrent = {},
             onLogoutAccount = {},
             onLogoutAll = {},
-            onOpenBgmWeb = {},
+            onOpenWebUrl = {},
+            onOpenUserWeb = {},
             onClearCache = {},
             onCollectionClick = {},
             onSelectSyncInterval = {},
@@ -1513,13 +1886,21 @@ private fun UserScreenMultiAccountPreview() {
                     isLoggedIn = true,
                     activeProfile = previewProfile1,
                     savedAccounts = listOf(previewProfile1, previewProfile2),
+                    collectionCounts =
+                        mapOf(
+                            CollectionType.DOING to 8,
+                            CollectionType.WISH to 24,
+                            CollectionType.COLLECT to 142,
+                        ),
                 ),
             onLogin = {},
+            onRefresh = {},
             onSwitchAccount = {},
             onLogoutCurrent = {},
             onLogoutAccount = {},
             onLogoutAll = {},
-            onOpenBgmWeb = {},
+            onOpenWebUrl = {},
+            onOpenUserWeb = {},
             onClearCache = {},
             onCollectionClick = {},
             onSelectSyncInterval = {},
