@@ -61,12 +61,31 @@ class ExploreViewModelTest {
 
             assertEquals(2, searchRepository.advancedSearchCallCount)
             assertEquals(ExploreMood.HEALING, viewModel.uiState.value.selectedMood)
-            assertEquals(setOf("治愈", "日常"), viewModel.uiState.value.selectedTags)
-            assertEquals(ExploreSort.SCORE, viewModel.uiState.value.selectedSort)
+            assertEquals(ExploreSort.RANK, viewModel.uiState.value.selectedSort)
             assertEquals(ALL_TIME_SEASON, viewModel.uiState.value.selectedSeason)
             assertNull(searchRepository.lastAdvancedRequest?.filter?.airDate)
             assertEquals(listOf("治愈", "日常"), searchRepository.lastAdvancedRequest?.filter?.tag)
-            assertEquals("score", searchRepository.lastAdvancedRequest?.sort)
+            assertEquals(listOf(">0"), searchRepository.lastAdvancedRequest?.filter?.rank)
+            assertEquals("rank", searchRepository.lastAdvancedRequest?.sort)
+        }
+
+    @Test
+    fun masterpieceMoodSortsByRankAndFiltersOutUnrankedSubjects() =
+        runTest {
+            val searchRepository = FakeSearchRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val authRepository = FakeAuthRepository()
+            val viewModel = ExploreViewModel(searchRepository, collectionRepository, authRepository)
+            advanceUntilIdle()
+
+            viewModel.onMoodSelect(ExploreMood.MASTERPIECE)
+            advanceUntilIdle()
+
+            assertEquals(ExploreMood.MASTERPIECE, viewModel.uiState.value.selectedMood)
+            assertEquals(ExploreSort.RANK, viewModel.uiState.value.selectedSort)
+            assertEquals(listOf(">0"), searchRepository.lastAdvancedRequest?.filter?.rank)
+            assertEquals("rank", searchRepository.lastAdvancedRequest?.sort)
+            assertNull(searchRepository.lastAdvancedRequest?.filter?.airDate)
         }
 
     @Test

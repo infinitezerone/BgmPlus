@@ -212,11 +212,21 @@ class ExploreViewModel(
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoadingMore = true) }
 
+                val rankFilter =
+                    if (currentState.selectedSort in setOf(ExploreSort.RANK, ExploreSort.SCORE) ||
+                        currentState.selectedMood == ExploreMood.MASTERPIECE
+                    ) {
+                        listOf(">0")
+                    } else {
+                        null
+                    }
+
                 val filter =
                     SearchFilter(
                         type = currentState.selectedCategory.type?.let { listOf(it) },
                         tag = currentState.selectedTags.toList().ifEmpty { null },
                         airDate = currentState.selectedSeason.airDateFilter,
+                        rank = rankFilter,
                         nsfw = false,
                     )
                 val request =
@@ -276,11 +286,21 @@ class ExploreViewModel(
                     }
                 }
 
+                val rankFilter =
+                    if (currentState.selectedSort in setOf(ExploreSort.RANK, ExploreSort.SCORE) ||
+                        currentState.selectedMood == ExploreMood.MASTERPIECE
+                    ) {
+                        listOf(">0")
+                    } else {
+                        null
+                    }
+
                 val filter =
                     SearchFilter(
                         type = currentState.selectedCategory.type?.let { listOf(it) },
                         tag = currentState.selectedTags.toList().ifEmpty { null },
                         airDate = currentState.selectedSeason.airDateFilter,
+                        rank = rankFilter,
                         nsfw = false,
                     )
                 val request =
