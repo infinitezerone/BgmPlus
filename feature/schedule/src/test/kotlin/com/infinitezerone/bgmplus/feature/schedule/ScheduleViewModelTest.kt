@@ -9,7 +9,10 @@ import com.infinitezerone.bgmplus.core.testing.repository.FakeCollectionReposito
 import com.infinitezerone.bgmplus.core.testing.repository.FakeScheduleRepository
 import com.infinitezerone.bgmplus.core.testing.util.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,13 +30,22 @@ class ScheduleViewModelTest {
 
     private val today = LocalDate.now().dayOfWeek.value
 
+    private fun createViewModel(
+        repository: FakeScheduleRepository = FakeScheduleRepository(),
+        collectionRepository: FakeCollectionRepository = FakeCollectionRepository(),
+    ): ScheduleViewModel =
+        ScheduleViewModel(
+            scheduleRepository = repository,
+            collectionRepository = collectionRepository,
+        )
+
     @Test
     fun initTriggersRefreshAndEmitsTodaySchedules() =
         runTest {
             val repository = FakeScheduleRepository()
             val collectionRepository = FakeCollectionRepository()
             repository.sendSchedules(weekday = today, schedules = sampleAirScheduleList)
-            val viewModel = ScheduleViewModel(repository, collectionRepository)
+            val viewModel = createViewModel(repository, collectionRepository)
 
             val state = viewModel.uiState.first { it.schedules.isNotEmpty() && !it.isLoading }
 
@@ -44,6 +56,8 @@ class ScheduleViewModelTest {
             assertFalse(state.isOfflineCache)
             assertEquals(7, state.dateItems.size)
             assertTrue(state.dateItems.any { it.isToday && it.weekday == today })
+            assertEquals(1, state.dateItems.first().weekday)
+            assertEquals("周一", state.dateItems.first().weekdayLabel)
             assertEquals(
                 "葬送的芙莉莲",
                 state.schedules.first().titleCn,
@@ -67,7 +81,7 @@ class ScheduleViewModelTest {
                     ),
                 )
             repository.sendSchedules(weekday = 6, schedules = saturdaySchedules)
-            val viewModel = ScheduleViewModel(repository, collectionRepository)
+            val viewModel = createViewModel(repository, collectionRepository)
 
             viewModel.selectWeekday(6)
 
@@ -121,7 +135,7 @@ class ScheduleViewModelTest {
                 ),
             )
 
-            val viewModel = ScheduleViewModel(repository, collectionRepository)
+            val viewModel = createViewModel(repository, collectionRepository)
 
             val initialState = viewModel.uiState.first { it.watchingSubjectIds.contains(102L) }
 
@@ -130,6 +144,13 @@ class ScheduleViewModelTest {
             assertEquals(102L, initialState.currentDaySchedules[0].bgmId)
             assertEquals(101L, initialState.currentDaySchedules[1].bgmId)
             assertEquals(103L, initialState.currentDaySchedules[2].bgmId)
+
+            // 验证时间段与全天分组拆分逻辑
+            val timedList = initialState.getTimedSchedulesForWeekday(today)
+            val allDayList = initialState.getAllDaySchedulesForWeekday(today)
+            assertEquals(2, timedList.size)
+            assertEquals(1, allDayList.size)
+            assertEquals(103L, allDayList.first().bgmId)
 
             // 2. 验证今日追番 spotlight 推荐
             assertEquals(1, initialState.todayWatchingSchedules.size)
@@ -145,12 +166,99 @@ class ScheduleViewModelTest {
         }
 
     @Test
+    fun toggleWatching_updatesCollectionAndSendsMessage() =
+        runTest {
+            val repository = FakeScheduleRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val viewModel = createViewModel(repository, collectionRepository)
+
+            // 1. 初始不在看，点击加入追番
+            viewModel.toggleWatching(101L)
+            assertEquals(1, collectionRepository.updateCollectionCallCount)
+
+            val message = viewModel.userMessage.first()
+            assertEquals("已加入在看追番", message)
+        }
+
+    @Test
+    fun toggleWatching_optimisticallyUpdatesImmediately() =
+        runTest {
+            val repository = FakeScheduleRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val viewModel = createViewModel(repository, collectionRepository)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                viewModel.uiState.collect()
+            }
+
+            assertFalse(
+                viewModel.uiState.value.watchingSubjectIds
+                    .contains(101L),
+            )
+
+            // 点击加入追番 -> 乐观更新立即生效
+            viewModel.toggleWatching(101L)
+            assertTrue(
+                viewModel.uiState.value.watchingSubjectIds
+                    .contains(101L),
+            )
+
+            val message = viewModel.userMessage.first()
+            assertEquals("已加入在看追番", message)
+            assertTrue(
+                viewModel.uiState.value.watchingSubjectIds
+                    .contains(101L),
+            )
+        }
+
+    @Test
+    fun toggleWatching_rollsBackOnFailure() =
+        runTest {
+            val repository = FakeScheduleRepository()
+            val collectionRepository = FakeCollectionRepository()
+            collectionRepository.updateCollectionResult = AppResult.Error(IllegalStateException("网络异常"))
+            val viewModel = createViewModel(repository, collectionRepository)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                viewModel.uiState.collect()
+            }
+
+            assertFalse(
+                viewModel.uiState.value.watchingSubjectIds
+                    .contains(101L),
+            )
+
+            viewModel.toggleWatching(101L)
+
+            val message = viewModel.userMessage.first()
+            assertEquals("网络异常", message)
+            // 失败后乐观状态已回滚
+            assertFalse(
+                viewModel.uiState.value.watchingSubjectIds
+                    .contains(101L),
+            )
+        }
+
+    @Test
+    fun toggleOnlyWatching_persistsToPreferences() =
+        runTest {
+            val repository = FakeScheduleRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val viewModel = createViewModel(repository, collectionRepository)
+
+            assertFalse(viewModel.uiState.value.onlyWatching)
+
+            viewModel.toggleOnlyWatching()
+            assertTrue(viewModel.uiState.first { it.onlyWatching }.onlyWatching)
+
+            assertTrue(repository.scheduleDefaultOnlyWatching)
+        }
+
+    @Test
     fun refreshFailureSetsErrorState() =
         runTest {
             val repository = FakeScheduleRepository()
             val collectionRepository = FakeCollectionRepository()
             repository.refreshResult = AppResult.Error(RuntimeException("网络请求失败"))
-            val viewModel = ScheduleViewModel(repository, collectionRepository)
+            val viewModel = createViewModel(repository, collectionRepository)
 
             val state = viewModel.uiState.first { it.error != null && !it.isLoading }
 
@@ -167,7 +275,7 @@ class ScheduleViewModelTest {
             val collectionRepository = FakeCollectionRepository()
             repository.sendSchedules(weekday = today, schedules = sampleAirScheduleList)
             repository.refreshResult = AppResult.Error(RuntimeException("网络连接超时"))
-            val viewModel = ScheduleViewModel(repository, collectionRepository)
+            val viewModel = createViewModel(repository, collectionRepository)
 
             val state = viewModel.uiState.first { it.error != null && it.schedules.isNotEmpty() && !it.isLoading }
 
@@ -184,7 +292,7 @@ class ScheduleViewModelTest {
             val repository = FakeScheduleRepository()
             val collectionRepository = FakeCollectionRepository()
             repository.refreshResult = AppResult.Error(RuntimeException("网络请求失败"))
-            val viewModel = ScheduleViewModel(repository, collectionRepository)
+            val viewModel = createViewModel(repository, collectionRepository)
             assertTrue(viewModel.uiState.first { it.error != null }.error != null)
 
             repository.refreshResult = AppResult.Success(Unit)
@@ -195,5 +303,81 @@ class ScheduleViewModelTest {
             assertFalse(state.isLoading)
             assertNull(state.error)
             assertFalse(state.isOfflineCache)
+        }
+
+    @Test
+    fun timeGroupedSchedules_groupsAnimeByTimeSlotCorrectly() =
+        runTest {
+            val repository = FakeScheduleRepository()
+            val collectionRepository = FakeCollectionRepository()
+
+            val anime1 = AirSchedule(bgmId = 1L, title = "A1", titleCn = "A1", weekday = today, timeCst = "23:30")
+            val anime2 = AirSchedule(bgmId = 2L, title = "A2", titleCn = "A2", weekday = today, timeCst = "23:30")
+            val anime3 = AirSchedule(bgmId = 3L, title = "A3", titleCn = "A3", weekday = today, timeCst = "18:00")
+
+            repository.sendSchedules(weekday = today, schedules = listOf(anime1, anime2, anime3))
+            val viewModel = createViewModel(repository, collectionRepository)
+
+            val state = viewModel.uiState.first { it.schedules.size == 3 }
+            val grouped = state.getTimeGroupedSchedulesForWeekday(today)
+
+            assertEquals(2, grouped.size)
+            assertEquals(1, grouped["18:00"]?.size)
+            assertEquals(2, grouped["23:30"]?.size)
+            assertEquals(1L, grouped["23:30"]?.get(0)?.bgmId)
+            assertEquals(2L, grouped["23:30"]?.get(1)?.bgmId)
+        }
+
+    @Test
+    fun catchupItems_aggregatesUnwatchedAiredEpisodesFromYesterday() =
+        runTest {
+            val repository = FakeScheduleRepository()
+            val collectionRepository = FakeCollectionRepository()
+
+            val yesterday = if (today == 1) 7 else today - 1
+            val yesterdayAnime =
+                AirSchedule(
+                    bgmId = 888L,
+                    title = "Dandadan",
+                    titleCn = "胆大党",
+                    weekday = yesterday,
+                    timeCst = "00:30",
+                    nextEpisodeNumber = 9,
+                )
+            repository.sendSchedules(weekday = yesterday, schedules = listOf(yesterdayAnime))
+
+            // 用户正在追 888L，且只打卡到了第 8 话 (落后 1 话)
+            collectionRepository.sendCollection(
+                UserCollection(
+                    subjectId = 888L,
+                    type = CollectionType.DOING.value,
+                    epStatus = 8,
+                ),
+            )
+
+            val viewModel = createViewModel(repository, collectionRepository)
+
+            val state = viewModel.uiState.first { it.catchupItems.isNotEmpty() }
+            assertEquals(1, state.catchupItems.size)
+            val catchup = state.catchupItems.first()
+            assertEquals(888L, catchup.schedule.bgmId)
+            assertEquals("昨天", catchup.dayLabel)
+            assertEquals(8, catchup.epStatus)
+            assertEquals(9, catchup.targetEp)
+            assertEquals(1, state.yesterdaySchedules.size)
+        }
+
+    @Test
+    fun markEpisodeWatched_invokesRepositoryAndSendsFeedback() =
+        runTest {
+            val repository = FakeScheduleRepository()
+            val collectionRepository = FakeCollectionRepository()
+            val viewModel = createViewModel(repository, collectionRepository)
+
+            viewModel.markEpisodeWatched(subjectId = 888L, epNumber = 9)
+
+            assertEquals(1, collectionRepository.updateEpisodeCallCount)
+            val message = viewModel.userMessage.first()
+            assertEquals("已标记第 9 话已看过", message)
         }
 }

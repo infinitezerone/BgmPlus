@@ -4,8 +4,14 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,20 +27,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +58,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -53,29 +68,40 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.infinitezerone.bgmplus.core.designsystem.component.CoverImage
+import com.infinitezerone.bgmplus.core.designsystem.theme.RatingGold
+import com.infinitezerone.bgmplus.core.designsystem.theme.RatingGoldBright
+import com.infinitezerone.bgmplus.core.designsystem.theme.StatusAiring
+import com.infinitezerone.bgmplus.core.designsystem.theme.WishOrange
 import com.infinitezerone.bgmplus.core.model.AirSchedule
 import com.infinitezerone.bgmplus.core.model.SiteLink
 import com.infinitezerone.bgmplus.feature.schedule.components.ScheduleSourcesBottomSheet
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
-import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,13 +115,25 @@ fun ScheduleScreen(
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     var selectedScheduleForSources by remember { mutableStateOf<AirSchedule?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
+    // 监听 ViewModel 提示消息（如快捷追番或标记已看反馈）
+    LaunchedEffect(Unit) {
+        viewModel.userMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    // 7天平滑滑动的 Pager，初始定位到今天
+    val initialPage = (uiState.todayWeekday - 1).coerceIn(0, 6)
     val pagerState =
         rememberPagerState(
-            initialPage = (uiState.selectedWeekday - 1).coerceIn(0, 6),
+            initialPage = initialPage,
             pageCount = { 7 },
         )
 
+    // 滑动 Pager 时，双向同步选中的星期
     LaunchedEffect(pagerState.currentPage) {
         val targetWeekday = pagerState.currentPage + 1
         if (uiState.selectedWeekday != targetWeekday) {
@@ -120,20 +158,16 @@ fun ScheduleScreen(
                             contentDescription = "搜索条目",
                         )
                     }
-                    IconButton(onClick = viewModel::refresh) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "刷新放送表",
-                        )
-                    }
                 },
+                scrollBehavior = scrollBehavior,
                 colors =
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
                     ),
             )
         },
-        modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
     ) { innerPadding ->
         Column(
             modifier =
@@ -141,9 +175,11 @@ fun ScheduleScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
         ) {
+            // 顶部星期胶囊导航（指示器 + 快速点击锚点）
             ModernDateCapsuleStrip(
                 dateItems = uiState.dateItems,
                 selectedWeekday = uiState.selectedWeekday,
+                pagerState = pagerState,
                 onSelectWeekday = { weekday ->
                     viewModel.selectWeekday(weekday)
                     coroutineScope.launch {
@@ -164,78 +200,56 @@ fun ScheduleScreen(
                 onToggleOnlyWatching = viewModel::toggleOnlyWatching,
             )
 
-            HorizontalPager(
-                state = pagerState,
+            // 主体：左右手势丝滑翻页的 HorizontalPager
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh = viewModel::refresh,
                 modifier = Modifier.fillMaxSize(),
-            ) { page ->
-                val weekday = page + 1
-                val isToday = weekday == uiState.todayWeekday
-                val daySchedules = uiState.getSortedSchedulesForWeekday(weekday)
-
-                PullToRefreshBox(
-                    isRefreshing = uiState.isRefreshing,
-                    onRefresh = viewModel::refresh,
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    when {
-                        uiState.isLoading && uiState.weeklySchedules.isEmpty() -> {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                CircularProgressIndicator()
-                            }
+            ) {
+                when {
+                    uiState.isLoading && uiState.weeklySchedules.isEmpty() -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
                         }
+                    }
 
-                        daySchedules.isEmpty() && uiState.error != null -> {
-                            ScheduleErrorState(
-                                errorMessage = uiState.error.orEmpty(),
-                                onRetry = viewModel::refresh,
+                    uiState.weeklySchedules.values.all { it.isEmpty() } && uiState.error != null -> {
+                        ScheduleErrorState(
+                            errorMessage = uiState.error.orEmpty(),
+                            onRetry = viewModel::refresh,
+                        )
+                    }
+
+                    else -> {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize(),
+                        ) { pageIndex ->
+                            val pageWeekday = pageIndex + 1
+                            val isTodayPage = pageWeekday == uiState.todayWeekday
+                            val timeGrouped =
+                                remember(uiState.weeklySchedules, uiState.onlyWatching, uiState.watchingSubjectIds, pageWeekday) {
+                                    uiState.getTimeGroupedSchedulesForWeekday(pageWeekday)
+                                }
+                            val allDaySchedules =
+                                remember(uiState.weeklySchedules, uiState.onlyWatching, uiState.watchingSubjectIds, pageWeekday) {
+                                    uiState.getAllDaySchedulesForWeekday(pageWeekday)
+                                }
+
+                            DayScheduleList(
+                                weekday = pageWeekday,
+                                isTodayPage = isTodayPage,
+                                timeGrouped = timeGrouped,
+                                allDaySchedules = allDaySchedules,
+                                uiState = uiState,
+                                onSubjectClick = onSubjectClick,
+                                onToggleWatching = viewModel::toggleWatching,
+                                onMarkEpisodeWatched = viewModel::markEpisodeWatched,
+                                onShowSources = { selectedScheduleForSources = it },
                             )
-                        }
-
-                        daySchedules.isEmpty() -> {
-                            ScheduleEmptyState(
-                                onlyWatching = uiState.onlyWatching,
-                                onResetFilter = {
-                                    if (uiState.onlyWatching) viewModel.toggleOnlyWatching()
-                                },
-                                onRefresh = viewModel::refresh,
-                            )
-                        }
-
-                        else -> {
-                            LazyColumn(
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier.fillMaxSize(),
-                            ) {
-                                if (uiState.isOfflineCache) {
-                                    item(key = "offline_cache_banner") {
-                                        OfflineCacheBanner(onRetry = viewModel::refresh)
-                                    }
-                                }
-
-                                if (isToday && uiState.todayWatchingSchedules.isNotEmpty() && !uiState.onlyWatching) {
-                                    item(key = "today_watching_spotlight") {
-                                        TodayWatchingAiringSection(
-                                            schedules = uiState.todayWatchingSchedules,
-                                            onSubjectClick = onSubjectClick,
-                                        )
-                                    }
-                                }
-
-                                items(daySchedules, key = { it.bgmId }) { schedule ->
-                                    val isWatching = uiState.watchingSubjectIds.contains(schedule.bgmId)
-                                    TimelineScheduleItem(
-                                        schedule = schedule,
-                                        isWatching = isWatching,
-                                        isToday = isToday,
-                                        onSubjectClick = onSubjectClick,
-                                        onShowSources = { selectedScheduleForSources = it },
-                                    )
-                                }
-                            }
                         }
                     }
                 }
@@ -253,21 +267,823 @@ fun ScheduleScreen(
 }
 
 @Composable
+private fun DayScheduleList(
+    weekday: Int,
+    isTodayPage: Boolean,
+    timeGrouped: Map<String, List<AirSchedule>>,
+    allDaySchedules: List<AirSchedule>,
+    uiState: ScheduleUiState,
+    onSubjectClick: (Long) -> Unit,
+    onToggleWatching: (Long) -> Unit,
+    onMarkEpisodeWatched: (Long, Int) -> Unit,
+    onShowSources: (AirSchedule) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        contentPadding = PaddingValues(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier.fillMaxSize(),
+    ) {
+        if (uiState.isOfflineCache) {
+            item(key = "offline_cache_banner") {
+                OfflineCacheBanner(onRetry = {})
+            }
+        }
+
+        // ==================== 今日视图专属首屏：待补更新 ====================
+        if (isTodayPage && !uiState.onlyWatching && uiState.catchupItems.isNotEmpty()) {
+            item(key = "today_catchup_feed") {
+                ScheduleCatchupSection(
+                    catchupItems = uiState.catchupItems,
+                    onSubjectClick = onSubjectClick,
+                    onMarkEpisodeWatched = onMarkEpisodeWatched,
+                )
+            }
+        }
+
+        // 如果当天完全没有排播
+        if (timeGrouped.isEmpty() && allDaySchedules.isEmpty()) {
+            item(key = "empty_day_$weekday") {
+                ScheduleDayEmptyNote(onlyWatching = uiState.onlyWatching)
+            }
+        } else {
+            // ==================== 时间线排播节点（时间醒目 + 聚合防冗余） ====================
+            timeGrouped.forEach { (time, animeList) ->
+                item(key = "timeslot_${weekday}_$time") {
+                    TimelineSlotRow(
+                        time = time,
+                        schedules = animeList,
+                        isToday = isTodayPage,
+                        watchingSubjectIds = uiState.watchingSubjectIds,
+                        onSubjectClick = onSubjectClick,
+                        onToggleWatching = onToggleWatching,
+                        onShowSources = onShowSources,
+                    )
+                }
+            }
+
+            // ==================== 全天 / 网络独播待定番剧自然收容 ====================
+            if (allDaySchedules.isNotEmpty()) {
+                item(key = "untimed_section_$weekday") {
+                    ScheduleUntimedSection(
+                        schedules = allDaySchedules,
+                        watchingSubjectIds = uiState.watchingSubjectIds,
+                        onSubjectClick = onSubjectClick,
+                        onToggleWatching = onToggleWatching,
+                        onShowSources = onShowSources,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 时间线单行插槽：左侧醒目时间轴轨道 + 右侧番剧卡片/聚合卡片 */
+@Composable
+private fun TimelineSlotRow(
+    time: String,
+    schedules: List<AirSchedule>,
+    isToday: Boolean,
+    watchingSubjectIds: Set<Long>,
+    onSubjectClick: (Long) -> Unit,
+    onToggleWatching: (Long) -> Unit,
+    onShowSources: (AirSchedule) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val airStatus = getAirStatus(time, isToday = isToday)
+    val jstTime = schedules.firstOrNull()?.timeJst
+
+    Row(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TimelineTrackRail(
+            time = time,
+            airStatus = airStatus,
+            jstTime = jstTime,
+            count = schedules.size,
+            modifier = Modifier.width(56.dp),
+        )
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            schedules.forEach { singleSchedule ->
+                ScheduleTimelineSingleCard(
+                    schedule = singleSchedule,
+                    isWatching = watchingSubjectIds.contains(singleSchedule.bgmId),
+                    onSubjectClick = onSubjectClick,
+                    onToggleWatching = onToggleWatching,
+                    onShowSources = onShowSources,
+                )
+            }
+        }
+    }
+}
+
+/** 垂直时间线轨道：醒目的时间数值、状态标识、连接线与节点 */
+@Composable
+private fun TimelineTrackRail(
+    time: String,
+    airStatus: AirStatus,
+    jstTime: String?,
+    count: Int,
+    modifier: Modifier = Modifier,
+) {
+    val outlineVariant = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    val statusColor =
+        when (airStatus) {
+            AirStatus.AIRING -> StatusAiring
+            AirStatus.UPCOMING -> MaterialTheme.colorScheme.primary
+            AirStatus.AIRED -> MaterialTheme.colorScheme.outline
+            AirStatus.NORMAL -> MaterialTheme.colorScheme.onSurfaceVariant
+        }
+
+    Row(
+        modifier = modifier.fillMaxHeight(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        // 左列：时间数值与状态标签
+        Column(
+            horizontalAlignment = Alignment.End,
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(top = 2.dp),
+        ) {
+            Text(
+                text = time,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color =
+                    when (airStatus) {
+                        AirStatus.AIRING -> StatusAiring
+                        AirStatus.UPCOMING -> MaterialTheme.colorScheme.primary
+                        AirStatus.AIRED -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        AirStatus.NORMAL -> MaterialTheme.colorScheme.onSurface
+                    },
+                maxLines = 1,
+            )
+
+            if (airStatus != AirStatus.NORMAL) {
+                Text(
+                    text =
+                        when (airStatus) {
+                            AirStatus.AIRED -> "已播"
+                            AirStatus.AIRING -> "热播"
+                            AirStatus.UPCOMING -> "待播"
+                            AirStatus.NORMAL -> ""
+                        },
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.82f,
+                    fontWeight = FontWeight.Bold,
+                    color = statusColor,
+                )
+            }
+
+            if (count > 1) {
+                Surface(
+                    shape = RoundedCornerShape(3.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
+                    modifier = Modifier.padding(top = 2.dp),
+                ) {
+                    Text(
+                        text = "${count}部",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.75f,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.5.dp),
+                    )
+                }
+            }
+
+            if (!jstTime.isNullOrBlank() && jstTime != time) {
+                Text(
+                    text = jstTime,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.7f,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    maxLines = 1,
+                    modifier = Modifier.padding(top = 1.dp),
+                )
+            }
+        }
+
+        // 右列：贯穿时间线与节点
+        Box(
+            modifier =
+                Modifier
+                    .width(10.dp)
+                    .fillMaxHeight()
+                    .drawBehind {
+                        val centerX = size.width / 2
+                        val dotCenterY = 9.dp.toPx()
+
+                        // 垂直轨道连线（向下延伸连接到下一个 item 的 spacing）
+                        drawLine(
+                            color = outlineVariant,
+                            start = Offset(centerX, 0f),
+                            end = Offset(centerX, size.height + 12.dp.toPx()),
+                            strokeWidth = 2.dp.toPx(),
+                        )
+
+                        // 状态节点
+                        when (airStatus) {
+                            AirStatus.AIRING -> {
+                                drawCircle(
+                                    color = StatusAiring.copy(alpha = 0.25f),
+                                    radius = 6.5.dp.toPx(),
+                                    center = Offset(centerX, dotCenterY),
+                                )
+                                drawCircle(
+                                    color = StatusAiring,
+                                    radius = 3.5.dp.toPx(),
+                                    center = Offset(centerX, dotCenterY),
+                                )
+                            }
+                            AirStatus.UPCOMING -> {
+                                drawCircle(
+                                    color = statusColor.copy(alpha = 0.2f),
+                                    radius = 5.5.dp.toPx(),
+                                    center = Offset(centerX, dotCenterY),
+                                )
+                                drawCircle(
+                                    color = statusColor,
+                                    radius = 3.dp.toPx(),
+                                    center = Offset(centerX, dotCenterY),
+                                )
+                            }
+                            else -> {
+                                drawCircle(
+                                    color = outlineVariant,
+                                    radius = 3.dp.toPx(),
+                                    center = Offset(centerX, dotCenterY),
+                                )
+                            }
+                        }
+                    },
+        )
+    }
+}
+
+/** 单番时间线卡片（左侧有醒目时间轨，右侧卡片遵循古腾堡阅读动线与无遮挡海报） */
+@Composable
+private fun ScheduleTimelineSingleCard(
+    schedule: AirSchedule,
+    isWatching: Boolean,
+    onSubjectClick: (Long) -> Unit,
+    onToggleWatching: (Long) -> Unit,
+    onShowSources: (AirSchedule) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val displayName = schedule.titleCn.ifBlank { schedule.title }
+    val originalTitle = schedule.title.takeIf { it.isNotBlank() && it != displayName }
+
+    Card(
+        onClick = { onSubjectClick(schedule.bgmId) },
+        shape = RoundedCornerShape(14.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    if (isWatching) {
+                        MaterialTheme.colorScheme.surfaceContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerLow
+                    },
+            ),
+        border =
+            if (isWatching) {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
+            } else {
+                null
+            },
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // 纯净封面：无任何盖脸黑标，保证视觉艺术完整性
+            Box(
+                modifier =
+                    Modifier
+                        .width(58.dp)
+                        .height(82.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+            ) {
+                CoverImage(
+                    url = schedule.coverUrl,
+                    contentDescription = displayName,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            // 内容区：自上而下的自然阅读动线
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                // 1. 顶层：标题独享 100% 水平宽度，支持长标题两行舒展
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = displayName,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    if (originalTitle != null) {
+                        Text(
+                            text = originalTitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = MaterialTheme.typography.bodySmall.fontSize * 0.88f,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    // 2. 中间层：话数胶囊 + ★ 金色评分
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(top = 2.dp),
+                    ) {
+                        if (schedule.nextEpisodeNumber > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                            ) {
+                                Text(
+                                    text = "第 ${schedule.nextEpisodeNumber} 话",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.9f,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                )
+                            }
+                        }
+
+                        if (schedule.ratingScore > 0.0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Star,
+                                    contentDescription = null,
+                                    tint = RatingGold,
+                                    modifier = Modifier.size(11.dp),
+                                )
+                                Text(
+                                    text = schedule.ratingScore.toString(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = RatingGold,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 3. 底部终端区（Terminal Area）：左侧播放源 + 右侧行动召唤追番
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                ) {
+                    if (schedule.siteLinks.isNotEmpty()) {
+                        SiteLinksRow(
+                            links = schedule.siteLinks,
+                            onOpenUrl = { openWebUrl(context, it) },
+                            onShowMoreSources = { onShowSources(schedule) },
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
+
+                    BookmarkChip(
+                        isWatching = isWatching,
+                        onToggle = { onToggleWatching(schedule.bgmId) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 待补更新聚合卡片（昨日·前天已播但用户未打卡的番） */
+@Composable
+private fun ScheduleCatchupSection(
+    catchupItems: List<CatchupScheduleItem>,
+    onSubjectClick: (Long) -> Unit,
+    onMarkEpisodeWatched: (Long, Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+            ),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ElectricBolt,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = "待补更新 (近期在追)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                ) {
+                    Text(
+                        text = "${catchupItems.size} 部未看",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                catchupItems.forEach { item ->
+                    val displayName = item.schedule.titleCn.ifBlank { item.schedule.title }
+                    Surface(
+                        onClick = { onSubjectClick(item.schedule.bgmId) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .size(width = 44.dp, height = 60.dp)
+                                        .clip(RoundedCornerShape(6.dp)),
+                            ) {
+                                CoverImage(
+                                    url = item.schedule.coverUrl,
+                                    contentDescription = displayName,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(bottomEnd = 4.dp),
+                                    modifier = Modifier.align(Alignment.TopStart),
+                                ) {
+                                    Text(
+                                        text = item.dayLabel,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.85f,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp),
+                                    )
+                                }
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = displayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "已更新至第 ${item.targetEp} 话 · 当前打卡第 ${item.epStatus} 话",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+
+                            Button(
+                                onClick = { onMarkEpisodeWatched(item.schedule.bgmId, item.targetEp) },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    ),
+                                modifier = Modifier.height(30.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp),
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "标为看过",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 全天 / 时间待定番剧自然收容折叠区 */
+@Composable
+private fun ScheduleUntimedSection(
+    schedules: List<AirSchedule>,
+    watchingSubjectIds: Set<Long>,
+    onSubjectClick: (Long) -> Unit,
+    onToggleWatching: (Long) -> Unit,
+    onShowSources: (AirSchedule) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var isExpanded by remember { mutableStateOf(true) }
+
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = modifier.fillMaxWidth().padding(top = 4.dp),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Surface(
+                onClick = { isExpanded = !isExpanded },
+                color = Color.Transparent,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudQueue,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            text = "全天 / 网络独播待定",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        ) {
+                            Text(
+                                text = "${schedules.size} 部",
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "折叠" else "展开",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 10.dp),
+                ) {
+                    schedules.forEach { schedule ->
+                        ScheduleTimelineSingleCard(
+                            schedule = schedule,
+                            isWatching = watchingSubjectIds.contains(schedule.bgmId),
+                            onSubjectClick = onSubjectClick,
+                            onToggleWatching = onToggleWatching,
+                            onShowSources = onShowSources,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookmarkChip(
+    isWatching: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onToggle,
+        shape = RoundedCornerShape(7.dp),
+        color =
+            if (isWatching) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+        border =
+            if (isWatching) {
+                null
+            } else {
+                BorderStroke(0.6.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
+            },
+        modifier = modifier,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+        ) {
+            Icon(
+                imageVector = if (isWatching) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                contentDescription = null,
+                tint =
+                    if (isWatching) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                modifier = Modifier.size(12.dp),
+            )
+            Spacer(modifier = Modifier.width(3.dp))
+            Text(
+                text = if (isWatching) "在追" else "追番",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color =
+                    if (isWatching) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SiteLinksRow(
+    links: List<SiteLink>,
+    onOpenUrl: (String) -> Unit,
+    onShowMoreSources: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val sortedLinks = remember(links) { sortSiteLinks(links) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        modifier = modifier,
+    ) {
+        sortedLinks.firstOrNull()?.let { topLink ->
+            Surface(
+                onClick = { onOpenUrl(topLink.playUrl) },
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp),
+                ) {
+                    Text(
+                        text = topLink.displayName,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.9f,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(9.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                }
+            }
+        }
+
+        if (sortedLinks.size > 1) {
+            Surface(
+                onClick = onShowMoreSources,
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.5.dp),
+                ) {
+                    Text(
+                        text = "+${sortedLinks.size - 1} 更多源",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.85f,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ModernDateCapsuleStrip(
     dateItems: List<WeekdayDateItem>,
     selectedWeekday: Int,
+    pagerState: PagerState,
     onSelectWeekday: (Int) -> Unit,
     watchingCountMap: Map<Int, Int>,
     totalCountMap: Map<Int, Int>,
     modifier: Modifier = Modifier,
 ) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = modifier.fillMaxWidth(),
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+    var containerWidthPx by remember { mutableIntStateOf(0) }
+
+    val capsuleWidthDp = 56.dp
+    val spacingDp = 8.dp
+    val horizontalPaddingDp = 14.dp
+    val stridePx = with(density) { (capsuleWidthDp + spacingDp).toPx() }
+    val capsuleWidthPx = with(density) { capsuleWidthDp.toPx() }
+    val paddingPx = with(density) { horizontalPaddingDp.toPx() }
+
+    // 左右手势滑动时刻日期 Pager 时，实时像素级同步滑动顶部的星期胶囊条，使当前选中的日期始终居中平滑跟手展示
+    LaunchedEffect(containerWidthPx) {
+        if (containerWidthPx <= 0) return@LaunchedEffect
+        snapshotFlow {
+            val pageFraction = pagerState.currentPage + pagerState.currentPageOffsetFraction
+            val maxScroll = scrollState.maxValue
+            Triple(pageFraction, maxScroll, scrollState.isScrollInProgress)
+        }.collect { (pageFraction, maxScroll, isTabDragging) ->
+            if (maxScroll > 0 && !isTabDragging) {
+                val centerPx = paddingPx + pageFraction * stridePx + capsuleWidthPx / 2f
+                val targetScrollPx =
+                    (centerPx - containerWidthPx / 2f)
+                        .coerceIn(0f, maxScroll.toFloat())
+                        .roundToInt()
+                scrollState.scrollTo(targetScrollPx)
+            }
+        }
+    }
+
+    Row(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { coordinates ->
+                    containerWidthPx = coordinates.size.width
+                }.horizontalScroll(scrollState)
+                .padding(horizontal = horizontalPaddingDp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacingDp),
     ) {
-        items(dateItems, key = { it.weekday }) { item ->
-            val isSelected = item.weekday == selectedWeekday
+        val activeWeekday = pagerState.currentPage + 1
+        dateItems.forEach { item ->
+            val isSelected = item.weekday == activeWeekday
             val watchingCount = watchingCountMap[item.weekday] ?: 0
             val totalCount = totalCountMap[item.weekday] ?: 0
 
@@ -295,7 +1111,7 @@ private fun DateCapsule(
         if (isSelected) {
             MaterialTheme.colorScheme.primary
         } else if (item.isToday) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
         } else {
             MaterialTheme.colorScheme.surfaceContainerLow
         }
@@ -318,71 +1134,43 @@ private fun DateCapsule(
 
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = containerColor,
-        border = if (borderColor != Color.Transparent) androidx.compose.foundation.BorderStroke(1.dp, borderColor) else null,
-        modifier = modifier.width(62.dp),
+        border = if (borderColor != Color.Transparent) BorderStroke(1.dp, borderColor) else null,
+        modifier = modifier.width(56.dp),
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            if (item.isToday) {
-                Surface(
-                    shape = CircleShape,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.primary,
-                ) {
-                    Text(
-                        text = "今天",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = if (item.isToday) "今天" else item.weekdayLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isSelected || item.isToday) FontWeight.Bold else FontWeight.Medium,
+                    color = contentColor,
+                )
+                if (watchingCount > 0) {
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(if (isSelected) RatingGoldBright else WishOrange),
                     )
                 }
-            } else {
-                Text(
-                    text = item.dateLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = contentColor.copy(alpha = 0.75f),
-                )
             }
 
             Text(
-                text = item.weekdayLabel,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = if (isSelected || item.isToday) FontWeight.Bold else FontWeight.Medium,
-                color = contentColor,
+                text = "${item.dateLabel} ($totalCount)",
+                style = MaterialTheme.typography.labelSmall,
+                color = contentColor.copy(alpha = 0.75f),
             )
-
-            if (watchingCount > 0) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(1.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Star,
-                        contentDescription = null,
-                        tint = if (isSelected) Color(0xFFFFD54F) else Color(0xFFFF9800),
-                        modifier = Modifier.size(10.dp),
-                    )
-                    Text(
-                        text = "$watchingCount",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isSelected) Color(0xFFFFD54F) else Color(0xFFFF9800),
-                    )
-                }
-            } else if (totalCount > 0) {
-                Text(
-                    text = "${totalCount}部",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = contentColor.copy(alpha = 0.6f),
-                )
-            } else {
-                Spacer(modifier = Modifier.height(14.dp))
-            }
         }
     }
 }
@@ -449,513 +1237,25 @@ private fun FilterAndMetaBar(
 }
 
 @Composable
-private fun TodayWatchingAiringSection(
-    schedules: List<AirSchedule>,
-    onSubjectClick: (Long) -> Unit,
+private fun ScheduleDayEmptyNote(
+    onlyWatching: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.padding(bottom = 8.dp),
-            ) {
-                Text(
-                    text = "🔥 今日我追的更新",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                ) {
-                    Text(
-                        text = "${schedules.size} 部更新",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                    )
-                }
-            }
-
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(schedules, key = { "watching_spotlight_${it.bgmId}" }) { schedule ->
-                    TodayWatchingMiniCard(
-                        schedule = schedule,
-                        onClick = { onSubjectClick(schedule.bgmId) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TodayWatchingMiniCard(
-    schedule: AirSchedule,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val displayName = schedule.titleCn.ifBlank { schedule.title }
-    val time = schedule.timeCst.ifBlank { schedule.timeJst }
-    val airStatus = getAirStatus(time, isToday = true)
-
-    Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = modifier.width(130.dp),
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(150.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-            ) {
-                CoverImage(
-                    url = schedule.coverUrl,
-                    contentDescription = displayName,
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                val statusText =
-                    when (airStatus) {
-                        AirStatus.AIRED -> "已开播"
-                        AirStatus.AIRING -> "热播中"
-                        AirStatus.UPCOMING -> if (time.isNotBlank()) time else "待播"
-                        AirStatus.NORMAL -> time
-                    }
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (airStatus == AirStatus.AIRING) Color(0xFFFF5722) else Color.Black.copy(alpha = 0.75f),
-                    modifier =
-                        Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(4.dp),
-                ) {
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = displayName,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            if (schedule.nextEpisodeNumber > 0) {
-                Text(
-                    text = "第 ${schedule.nextEpisodeNumber} 话",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimelineScheduleItem(
-    schedule: AirSchedule,
-    isWatching: Boolean,
-    isToday: Boolean,
-    onSubjectClick: (Long) -> Unit,
-    onShowSources: (AirSchedule) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val time = schedule.timeCst.ifBlank { schedule.timeJst }
-    val airStatus = getAirStatus(time, isToday = isToday)
-
-    Row(
+        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(10.dp),
         modifier =
             modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(vertical = 16.dp),
     ) {
-        TimelineTrackRail(
-            time = time,
-            airStatus = airStatus,
-            modifier = Modifier.width(58.dp),
+        Text(
+            text = if (onlyWatching) "本日暂无您在追的番剧" else "本日暂无新番排播",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.outline,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(vertical = 24.dp),
         )
-
-        ScheduleTimelineCard(
-            schedule = schedule,
-            isWatching = isWatching,
-            onSubjectClick = onSubjectClick,
-            onShowSources = onShowSources,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun TimelineTrackRail(
-    time: String,
-    airStatus: AirStatus,
-    modifier: Modifier = Modifier,
-) {
-    val outlineVariant = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-
-    Row(
-        modifier = modifier.fillMaxHeight(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.End,
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .padding(top = 3.dp),
-        ) {
-            Text(
-                text = time.ifBlank { "全天" },
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                softWrap = false,
-                color =
-                    when (airStatus) {
-                        AirStatus.AIRING -> Color(0xFFFF5722)
-                        AirStatus.UPCOMING -> MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-            )
-
-            if (airStatus != AirStatus.NORMAL) {
-                Text(
-                    text =
-                        when (airStatus) {
-                            AirStatus.AIRED -> "已播"
-                            AirStatus.AIRING -> "在播"
-                            AirStatus.UPCOMING -> "待播"
-                            AirStatus.NORMAL -> ""
-                        },
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color =
-                        when (airStatus) {
-                            AirStatus.AIRED -> MaterialTheme.colorScheme.outline
-                            AirStatus.AIRING -> Color(0xFFFF5722)
-                            AirStatus.UPCOMING -> MaterialTheme.colorScheme.primary
-                            AirStatus.NORMAL -> Color.Transparent
-                        },
-                )
-            }
-        }
-
-        Box(
-            modifier =
-                Modifier
-                    .width(14.dp)
-                    .fillMaxHeight()
-                    .drawBehind {
-                        val centerX = size.width / 2
-                        drawLine(
-                            color = outlineVariant,
-                            start = Offset(centerX, 0f),
-                            end = Offset(centerX, size.height),
-                            strokeWidth = 2.dp.toPx(),
-                        )
-                    },
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .padding(top = 7.dp)
-                        .size(
-                            when (airStatus) {
-                                AirStatus.AIRING -> 12.dp
-                                AirStatus.UPCOMING -> 10.dp
-                                else -> 8.dp
-                            },
-                        ).clip(CircleShape)
-                        .background(
-                            when (airStatus) {
-                                AirStatus.AIRING -> Color(0xFFFF5722)
-                                AirStatus.UPCOMING -> MaterialTheme.colorScheme.primary
-                                AirStatus.AIRED -> MaterialTheme.colorScheme.outlineVariant
-                                AirStatus.NORMAL -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                            },
-                        ),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ScheduleTimelineCard(
-    schedule: AirSchedule,
-    isWatching: Boolean,
-    onSubjectClick: (Long) -> Unit,
-    onShowSources: (AirSchedule) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val displayName = schedule.titleCn.ifBlank { schedule.title }
-    val originalTitle = schedule.title.takeIf { it.isNotBlank() && it != displayName }
-
-    val cardColor =
-        if (isWatching) {
-            MaterialTheme.colorScheme.surfaceContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerLow
-        }
-
-    val cardBorder =
-        if (isWatching) {
-            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-        } else {
-            null
-        }
-
-    Card(
-        onClick = { onSubjectClick(schedule.bgmId) },
-        shape = RoundedCornerShape(14.dp),
-        border = cardBorder,
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .width(76.dp)
-                        .height(106.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-            ) {
-                CoverImage(
-                    url = schedule.coverUrl,
-                    contentDescription = displayName,
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                if (schedule.ratingScore > 0.0) {
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.72f),
-                        shape = RoundedCornerShape(bottomStart = 8.dp),
-                        modifier = Modifier.align(Alignment.TopEnd),
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Star,
-                                contentDescription = null,
-                                tint = Color(0xFFFFB800),
-                                modifier = Modifier.size(10.dp),
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text(
-                                text = schedule.ratingScore.toString(),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                            )
-                        }
-                    }
-                }
-            }
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        text = displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-
-                    if (isWatching) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.padding(start = 6.dp),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Bookmark,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(10.dp),
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(
-                                    text = "在追",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (originalTitle != null) {
-                    Text(
-                        text = originalTitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(top = 1.dp),
-                ) {
-                    if (schedule.nextEpisodeNumber > 0) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                        ) {
-                            Text(
-                                text = "第 ${schedule.nextEpisodeNumber} 话",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            )
-                        }
-                    }
-
-                    if (schedule.timeJst.isNotBlank()) {
-                        Text(
-                            text = "日本 ${schedule.timeJst}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        )
-                    }
-                }
-
-                // 播放源固定行（零滚动、零手势冲突、优先常用源）
-                if (schedule.siteLinks.isNotEmpty()) {
-                    val sortedLinks = remember(schedule.siteLinks) { sortSiteLinks(schedule.siteLinks) }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.padding(top = 3.dp),
-                    ) {
-                        sortedLinks.firstOrNull()?.let { topLink ->
-                            Surface(
-                                onClick = { openWebUrl(context, topLink.playUrl) },
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                ) {
-                                    Text(
-                                        text = topLink.displayName,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(10.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    )
-                                }
-                            }
-                        }
-
-                        if (sortedLinks.size > 1) {
-                            Surface(
-                                onClick = { onShowSources(schedule) },
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                ) {
-                                    Text(
-                                        text = "+${sortedLinks.size - 1} 更多源 ▾",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun sortSiteLinks(links: List<SiteLink>): List<SiteLink> {
-    val priorityOrder =
-        listOf(
-            "bilibili",
-            "gamer",
-            "gamer_hk",
-            "bahamut",
-            "iqiyi",
-            "qq",
-            "youku",
-            "mikan",
-            "muse_tw",
-            "muse_hk",
-            "ani_one",
-            "ani_one_asia",
-            "netflix",
-            "disneyplus",
-            "crunchyroll",
-            "abema",
-            "danime",
-            "unext",
-            "prime",
-            "nicovideo",
-        )
-    return links.distinctBy { it.displayName }.sortedBy { link ->
-        val index = priorityOrder.indexOf(link.siteName.lowercase())
-        if (index >= 0) index else 100
     }
 }
 
@@ -978,7 +1278,7 @@ private fun OfflineCacheBanner(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "⚠️ 离线缓存数据 · 点击重试获取最新",
+                text = "⚠️ 离线缓存数据 · 下拉或点击重试",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
@@ -1042,59 +1342,6 @@ private fun ScheduleErrorState(
     }
 }
 
-@Composable
-private fun ScheduleEmptyState(
-    onlyWatching: Boolean,
-    onResetFilter: () -> Unit,
-    onRefresh: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = if (onlyWatching) "⭐" else "📺",
-                style = MaterialTheme.typography.displayMedium,
-            )
-            Text(
-                text = if (onlyWatching) "今天没有您在追的番剧更新" else "这一天暂无放送计划",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = if (onlyWatching) "您可以切换至全部新番，探索更多当季精彩" else "下拉或点击刷新获取最新数据",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            if (onlyWatching) {
-                Button(onClick = onResetFilter) {
-                    Text(text = "查看全部新番")
-                }
-            } else {
-                Button(onClick = onRefresh) {
-                    Icon(
-                        imageVector = Icons.Filled.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "刷新数据")
-                }
-            }
-        }
-    }
-}
-
 private enum class AirStatus {
     NORMAL,
     UPCOMING,
@@ -1112,15 +1359,46 @@ private fun getAirStatus(
     val hour = parts[0].toIntOrNull() ?: return AirStatus.NORMAL
     val minute = parts[1].toIntOrNull() ?: return AirStatus.NORMAL
 
-    val now = LocalTime.now()
-    val airTime = LocalTime.of(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+    val zoneCst = ZoneId.of("Asia/Shanghai")
+    val now = ZonedDateTime.now(zoneCst)
+    val today = now.toLocalDate()
+    val airDateTime = today.atTime(hour.coerceIn(0, 23), minute.coerceIn(0, 59)).atZone(zoneCst)
+    val endDateTime = airDateTime.plusMinutes(35)
 
-    return if (now.isAfter(airTime.plusMinutes(35))) {
-        AirStatus.AIRED
-    } else if (now.isAfter(airTime)) {
-        AirStatus.AIRING
-    } else {
-        AirStatus.UPCOMING
+    return when {
+        now.isAfter(endDateTime) -> AirStatus.AIRED
+        now.isAfter(airDateTime) -> AirStatus.AIRING
+        else -> AirStatus.UPCOMING
+    }
+}
+
+private fun sortSiteLinks(links: List<SiteLink>): List<SiteLink> {
+    val priorityOrder =
+        listOf(
+            "bilibili",
+            "gamer",
+            "gamer_hk",
+            "bahamut",
+            "iqiyi",
+            "qq",
+            "youku",
+            "mikan",
+            "muse_tw",
+            "muse_hk",
+            "ani_one",
+            "ani_one_asia",
+            "netflix",
+            "disneyplus",
+            "crunchyroll",
+            "abema",
+            "danime",
+            "unext",
+            "prime",
+            "nicovideo",
+        )
+    return links.distinctBy { it.displayName }.sortedBy { link ->
+        val index = priorityOrder.indexOf(link.siteName.lowercase())
+        if (index >= 0) index else 100
     }
 }
 
