@@ -51,7 +51,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ZoomIn
@@ -82,7 +81,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -99,7 +97,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -487,10 +484,6 @@ fun SubjectDetailScreen(
                                             )
                                         }
                                     }
-
-                                    item(key = "web_discussion_section_episodes") {
-                                        EpisodeDiscussionFooter(subjectId = subjectId)
-                                    }
                                 }
 
                                 SubjectDetailTab.DETAILS -> {
@@ -531,21 +524,11 @@ fun SubjectDetailScreen(
                                             )
                                         }
                                     }
-
-                                    item(key = "web_discussion_section_details") {
-                                        SubjectCommunitySection(
-                                            subjectId = subjectId,
-                                            comments = uiState.subjectComments,
-                                            commentTotal = uiState.subjectCommentTotal,
-                                            topics = uiState.subjectTopics,
-                                        )
-                                    }
                                 }
 
                                 SubjectDetailTab.COMMUNITY -> {
                                     item(key = "community_tab_section") {
                                         SubjectCommunitySection(
-                                            subjectId = subjectId,
                                             comments = uiState.subjectComments,
                                             commentTotal = uiState.subjectCommentTotal,
                                             topics = uiState.subjectTopics,
@@ -2787,17 +2770,6 @@ private fun EpisodeCommentsSection(
                     }
                 }
             }
-
-            TextButton(
-                onClick = { launchCustomTab(context, "$BGM_BASE_URL/ep/${episode.id}") },
-            ) {
-                Text("网页版", style = MaterialTheme.typography.labelSmall)
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                    contentDescription = null,
-                    modifier = Modifier.size(13.dp).padding(start = 2.dp),
-                )
-            }
         }
 
         if (isLoading && comments.isEmpty()) {
@@ -2980,84 +2952,9 @@ private fun EpisodeCommentItem(
     }
 }
 
-/** 章节标签页底部：社区讨论与短评入口 */
-@Composable
-private fun EpisodeDiscussionFooter(
-    subjectId: Long,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ),
-        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.ChatBubbleOutline,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
-                )
-                Text(
-                    text = "社区讨论与全网短评",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            Text(
-                text = "单集专属吐槽请直接点击上方分集方块；讨论整部作品剧情伏笔或查看全网口碑，可前往讨论版或短评箱。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilledTonalButton(
-                    onClick = { launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/board") },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Forum,
-                        contentDescription = null,
-                        modifier = Modifier.size(15.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("讨论版话题", style = MaterialTheme.typography.labelMedium)
-                }
-                OutlinedButton(
-                    onClick = { launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/comments") },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = null,
-                        modifier = Modifier.size(15.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("全网短评箱", style = MaterialTheme.typography.labelMedium)
-                }
-            }
-        }
-    }
-}
-
-/** 社区标签页 / 讨论模块：原生展示短评精选、小组话题及网页入口 */
+/** 社区标签页 / 讨论模块：原生展示短评精选与小组讨论帖子 */
 @Composable
 private fun SubjectCommunitySection(
-    subjectId: Long,
     comments: List<SubjectComment>,
     commentTotal: Int,
     topics: List<SubjectTopic>,
@@ -3073,51 +2970,33 @@ private fun SubjectCommunitySection(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ChatBubbleOutline,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Text(
-                        text = "全网短评吐槽",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    if (commentTotal > 0) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                        ) {
-                            Text(
-                                text = "$commentTotal",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            )
-                        }
+                Icon(
+                    imageVector = Icons.Filled.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = "全网短评吐槽",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (commentTotal > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Text(
+                            text = "$commentTotal",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
                     }
-                }
-
-                TextButton(
-                    onClick = { launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/comments") },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    Text("查看全部", style = MaterialTheme.typography.labelMedium)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                    )
                 }
             }
 
@@ -3165,51 +3044,33 @@ private fun SubjectCommunitySection(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Forum,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Text(
-                        text = "讨论版交流区",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    if (topics.isNotEmpty()) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                        ) {
-                            Text(
-                                text = "${topics.size}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            )
-                        }
+                Icon(
+                    imageVector = Icons.Filled.Forum,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = "讨论版交流区",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (topics.isNotEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        Text(
+                            text = "${topics.size}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
                     }
-                }
-
-                TextButton(
-                    onClick = { launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/board") },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    Text("前往讨论版", style = MaterialTheme.typography.labelMedium)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                    )
                 }
             }
 
@@ -3253,32 +3114,6 @@ private fun SubjectCommunitySection(
                         }
                     }
                 }
-            }
-        }
-
-        // 3. 更多深度社区入口 (长评日志 / 影评)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                CommunityActionTile(
-                    icon = Icons.Filled.RateReview,
-                    iconTint = MaterialTheme.colorScheme.tertiary,
-                    tag = "精选影评",
-                    tagContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    tagContentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    title = "长评与影评日志",
-                    description = "万字深度长评、主创团队访谈考据与全剧终评",
-                    onClick = {
-                        launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/reviews")
-                    },
-                )
             }
         }
     }
@@ -3426,91 +3261,6 @@ private fun SubjectTopicItem(
                     )
                 }
             }
-        }
-    }
-}
-
-/** 社区动作条目卡片 */
-@Composable
-private fun CommunityActionTile(
-    icon: ImageVector,
-    iconTint: Color,
-    tag: String,
-    tagContainerColor: Color,
-    tagContentColor: Color,
-    title: String,
-    description: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
-        color = Color.Transparent,
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f),
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = iconTint.copy(alpha = 0.12f),
-                    modifier = Modifier.size(36.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = iconTint,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = tagContainerColor,
-                        ) {
-                            Text(
-                                text = tag,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = tagContentColor,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                            )
-                        }
-                    }
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = null,
-                tint = iconTint.copy(alpha = 0.7f),
-                modifier = Modifier.size(16.dp),
-            )
         }
     }
 }
