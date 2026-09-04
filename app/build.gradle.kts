@@ -1,15 +1,15 @@
-import com.infinitezerone.bgmplus.androidApplication
+import com.infinitezerone.minibgm.androidApplication
 
 plugins {
-    alias(libs.plugins.bgmplus.android.application.compose)
+    alias(libs.plugins.minibgm.android.application.compose)
     alias(libs.plugins.kotlin.serialization)
 }
 
 androidApplication {
-    namespace = "com.infinitezerone.bgmplus"
+    namespace = "com.infinitezerone.minibgm"
 
     defaultConfig {
-        applicationId = "com.infinitezerone.bgmplus"
+        applicationId = "com.infinitezerone.minibgm"
     }
 
     buildTypes {

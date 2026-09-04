@@ -2,7 +2,7 @@ plugins {
     `kotlin-dsl`
 }
 
-group = "com.infinitezerone.bgmplus.buildlogic"
+group = "com.infinitezerone.minibgm.buildlogic"
 
 dependencies {
     compileOnly(libs.android.gradlePlugin)
@@ -16,32 +16,32 @@ dependencies {
 gradlePlugin {
     plugins {
         register("kmpLibrary") {
-            id = "bgmplus.kmp.library"
-            implementationClass = "com.infinitezerone.bgmplus.KmpLibraryConventionPlugin"
+            id = "minibgm.kmp.library"
+            implementationClass = "com.infinitezerone.minibgm.KmpLibraryConventionPlugin"
         }
         register("kmpRoom") {
-            id = "bgmplus.kmp.room"
-            implementationClass = "com.infinitezerone.bgmplus.KmpRoomConventionPlugin"
+            id = "minibgm.kmp.room"
+            implementationClass = "com.infinitezerone.minibgm.KmpRoomConventionPlugin"
         }
         register("androidApplication") {
-            id = "bgmplus.android.application"
-            implementationClass = "com.infinitezerone.bgmplus.AndroidApplicationConventionPlugin"
+            id = "minibgm.android.application"
+            implementationClass = "com.infinitezerone.minibgm.AndroidApplicationConventionPlugin"
         }
         register("androidApplicationCompose") {
-            id = "bgmplus.android.application.compose"
-            implementationClass = "com.infinitezerone.bgmplus.AndroidApplicationComposeConventionPlugin"
+            id = "minibgm.android.application.compose"
+            implementationClass = "com.infinitezerone.minibgm.AndroidApplicationComposeConventionPlugin"
         }
         register("androidLibrary") {
-            id = "bgmplus.android.library"
-            implementationClass = "com.infinitezerone.bgmplus.AndroidLibraryConventionPlugin"
+            id = "minibgm.android.library"
+            implementationClass = "com.infinitezerone.minibgm.AndroidLibraryConventionPlugin"
         }
         register("androidLibraryCompose") {
-            id = "bgmplus.android.library.compose"
-            implementationClass = "com.infinitezerone.bgmplus.AndroidLibraryComposeConventionPlugin"
+            id = "minibgm.android.library.compose"
+            implementationClass = "com.infinitezerone.minibgm.AndroidLibraryComposeConventionPlugin"
         }
         register("androidFeature") {
-            id = "bgmplus.android.feature"
-            implementationClass = "com.infinitezerone.bgmplus.AndroidFeatureConventionPlugin"
+            id = "minibgm.android.feature"
+            implementationClass = "com.infinitezerone.minibgm.AndroidFeatureConventionPlugin"
         }
     }
 }

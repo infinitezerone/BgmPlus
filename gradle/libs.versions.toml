@@ -104,12 +104,12 @@ spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 
 
 
-# BgmPlus Custom Convention Plugins
-bgmplus-kmp-library = { id = "bgmplus.kmp.library", version = "unspecified" }
-bgmplus-kmp-room = { id = "bgmplus.kmp.room", version = "unspecified" }
-bgmplus-android-application = { id = "bgmplus.android.application", version = "unspecified" }
-bgmplus-android-application-compose = { id = "bgmplus.android.application.compose", version = "unspecified" }
-bgmplus-android-library = { id = "bgmplus.android.library", version = "unspecified" }
-bgmplus-android-library-compose = { id = "bgmplus.android.library.compose", version = "unspecified" }
-bgmplus-android-feature = { id = "bgmplus.android.feature", version = "unspecified" }
+# MiniBgm Custom Convention Plugins
+minibgm-kmp-library = { id = "minibgm.kmp.library", version = "unspecified" }
+minibgm-kmp-room = { id = "minibgm.kmp.room", version = "unspecified" }
+minibgm-android-application = { id = "minibgm.android.application", version = "unspecified" }
+minibgm-android-application-compose = { id = "minibgm.android.application.compose", version = "unspecified" }
+minibgm-android-library = { id = "minibgm.android.library", version = "unspecified" }
+minibgm-android-library-compose = { id = "minibgm.android.library.compose", version = "unspecified" }
+minibgm-android-feature = { id = "minibgm.android.feature", version = "unspecified" }
 

@@ -1,12 +1,12 @@
-import com.infinitezerone.bgmplus.androidLibrary
+import com.infinitezerone.minibgm.androidLibrary
 
 plugins {
-    alias(libs.plugins.bgmplus.android.library.compose)
+    alias(libs.plugins.minibgm.android.library.compose)
     alias(libs.plugins.kotlin.serialization)
 }
 
 androidLibrary {
-    namespace = "com.infinitezerone.bgmplus.core.navigation"
+    namespace = "com.infinitezerone.minibgm.core.navigation"
 }
 
 dependencies {

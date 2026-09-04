@@ -1,11 +1,11 @@
-import com.infinitezerone.bgmplus.androidLibrary
+import com.infinitezerone.minibgm.androidLibrary
 
 plugins {
-    alias(libs.plugins.bgmplus.android.library.compose)
+    alias(libs.plugins.minibgm.android.library.compose)
 }
 
 androidLibrary {
-    namespace = "com.infinitezerone.bgmplus.core.designsystem"
+    namespace = "com.infinitezerone.minibgm.core.designsystem"
 }
 
 dependencies {

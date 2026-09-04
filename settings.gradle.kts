@@ -32,7 +32,7 @@ android {
     targetSdk = 37
 }
 
-rootProject.name = "BgmPlus"
+rootProject.name = "MiniBgm"
 
 include(":app")
 include(":core:model")
