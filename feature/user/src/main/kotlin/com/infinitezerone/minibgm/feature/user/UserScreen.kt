@@ -104,7 +104,7 @@ import org.koin.androidx.compose.koinViewModel
 
 private const val BGM_HOME_URL = "https://bgm.tv"
 private const val BGM_WIKI_URL = "https://bgm.tv/wiki"
-private const val PROJECT_GITHUB_URL = "https://github.com/infinitezerone/BgmPlus"
+private const val PROJECT_GITHUB_URL = "https://github.com/infinitezerone/MiniBgm"
 
 @Composable
 fun UserScreen(
