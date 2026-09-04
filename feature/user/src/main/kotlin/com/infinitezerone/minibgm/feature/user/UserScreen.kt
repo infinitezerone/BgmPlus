@@ -151,10 +151,6 @@ fun UserScreen(
         onLogoutAccount = viewModel::logout,
         onLogoutAll = viewModel::logoutAll,
         onOpenWebUrl = openWebUrl,
-        onOpenUserWeb = { username ->
-            val url = if (username.isNotBlank()) "$BGM_HOME_URL/user/$username" else BGM_HOME_URL
-            openWebUrl(url)
-        },
         onClearCache = {
             coroutineScope.launch {
                 snackbarHostState.showSnackbar("本地缓存与临时数据已清理 ✨")
@@ -189,7 +185,6 @@ fun UserScreenContent(
     onLogoutAccount: (Long) -> Unit,
     onLogoutAll: () -> Unit,
     onOpenWebUrl: (String) -> Unit,
-    onOpenUserWeb: (String) -> Unit,
     onClearCache: () -> Unit,
     onCollectionClick: (CollectionType) -> Unit,
     onSelectSyncInterval: (SyncInterval) -> Unit,
@@ -215,19 +210,6 @@ fun UserScreenContent(
                 },
                 actions = {
                     if (uiState.isLoggedIn) {
-                        IconButton(
-                            onClick = {
-                                val username = uiState.activeProfile?.username.orEmpty()
-                                onOpenUserWeb(username)
-                            },
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = "在浏览器中查看个人主页",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-
                         IconButton(onClick = { showAccountSheet = true }) {
                             if (uiState.savedAccounts.size > 1) {
                                 BadgedBox(
@@ -286,10 +268,6 @@ fun UserScreenContent(
                             profile = uiState.activeProfile,
                             savedAccountsCount = uiState.savedAccounts.size,
                             onManageAccountsClick = { showAccountSheet = true },
-                            onOpenUserWeb = {
-                                val username = uiState.activeProfile?.username.orEmpty()
-                                onOpenUserWeb(username)
-                            },
                         )
                     }
 
@@ -681,7 +659,6 @@ private fun UserProfileHeaderCard(
     profile: UserProfile?,
     savedAccountsCount: Int,
     onManageAccountsClick: () -> Unit,
-    onOpenUserWeb: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sign = profile?.sign.orEmpty()
@@ -844,37 +821,19 @@ private fun UserProfileHeaderCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 核心快捷动作条（替代原先粗暴突兀的居中大退出按钮）
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            // 核心快捷动作条
+            FilledTonalButton(
+                onClick = onManageAccountsClick,
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
             ) {
-                FilledTonalButton(
-                    onClick = onOpenUserWeb,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "个人主页 ↗", style = MaterialTheme.typography.labelLarge)
-                }
-                OutlinedButton(
-                    onClick = onManageAccountsClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ManageAccounts,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "账号管理", style = MaterialTheme.typography.labelLarge)
-                }
+                Icon(
+                    imageVector = Icons.Filled.ManageAccounts,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "账号切换与管理", style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -1839,7 +1798,6 @@ private fun UserScreenUnauthenticatedPreview() {
             onLogoutAccount = {},
             onLogoutAll = {},
             onOpenWebUrl = {},
-            onOpenUserWeb = {},
             onClearCache = {},
             onCollectionClick = {},
             onSelectSyncInterval = {},
@@ -1875,7 +1833,6 @@ private fun UserScreenSingleAccountPreview() {
             onLogoutAccount = {},
             onLogoutAll = {},
             onOpenWebUrl = {},
-            onOpenUserWeb = {},
             onClearCache = {},
             onCollectionClick = {},
             onSelectSyncInterval = {},
@@ -1909,7 +1866,6 @@ private fun UserScreenMultiAccountPreview() {
             onLogoutAccount = {},
             onLogoutAll = {},
             onOpenWebUrl = {},
-            onOpenUserWeb = {},
             onClearCache = {},
             onCollectionClick = {},
             onSelectSyncInterval = {},

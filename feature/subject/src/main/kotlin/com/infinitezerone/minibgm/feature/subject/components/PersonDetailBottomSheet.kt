@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -62,7 +61,6 @@ fun PersonDetailBottomSheet(
     isLoading: Boolean,
     onDismiss: () -> Unit,
     onSubjectClick: (Long) -> Unit,
-    onOpenWeb: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
@@ -88,7 +86,7 @@ fun PersonDetailBottomSheet(
                     .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // 1. 顶部标题栏（人物名、身份职位、外链与关闭）
+            // 1. 顶部标题栏（人物名、身份职位与关闭）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -122,23 +120,13 @@ fun PersonDetailBottomSheet(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { onOpenWeb(personId) }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = "在浏览器中打开",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = "关闭",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "关闭",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
                 }
             }
 

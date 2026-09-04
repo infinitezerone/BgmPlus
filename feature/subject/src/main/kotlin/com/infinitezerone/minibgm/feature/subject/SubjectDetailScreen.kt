@@ -35,7 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -57,7 +56,6 @@ import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -581,10 +579,6 @@ fun SubjectDetailScreen(
                     private = private,
                 )
             },
-            onOpenWebDelete = {
-                showCollectionSheet = false
-                launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId")
-            },
         )
     }
 
@@ -608,7 +602,7 @@ fun SubjectDetailScreen(
         CharacterImagePreviewDialog(
             character = character,
             onDismiss = { previewCharacter = null },
-            onOpenWeb = { characterId ->
+            onViewDetail = { characterId ->
                 handleCharacterClick(characterId)
             },
         )
@@ -637,9 +631,6 @@ fun SubjectDetailScreen(
                         ?: SubjectPerson(id = actorId, name = "")
                 viewModel.loadPersonDetail(actorId)
             },
-            onOpenWeb = { characterId ->
-                launchCustomTab(context, "$BGM_BASE_URL/character/$characterId")
-            },
         )
     }
 
@@ -657,9 +648,6 @@ fun SubjectDetailScreen(
                 activePerson = null
                 viewModel.clearEntityDetail()
                 onSubjectClick(relSubjectId)
-            },
-            onOpenWeb = { personId ->
-                launchCustomTab(context, "$BGM_BASE_URL/person/$personId")
             },
         )
     }
@@ -885,29 +873,17 @@ private fun CharacterCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // 角色名字 + 跳转外链提示
-            Row(
+            // 角色名字
+            Text(
+                text = character.name,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = character.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.size(11.dp),
-                )
-            }
+            )
 
-            // 声优信息：独立胶囊，点击跳转声优个人主页
+            // 声优信息：独立胶囊，点击查看声优详情
             val actor = character.actors.firstOrNull()
             if (actor != null && actor.name.isNotBlank()) {
                 Spacer(modifier = Modifier.height(6.dp))
@@ -941,12 +917,6 @@ private fun CharacterCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
-                        )
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                            modifier = Modifier.size(10.dp),
                         )
                     }
                 }
@@ -1080,7 +1050,7 @@ private fun StaffSection(
 private fun CharacterImagePreviewDialog(
     character: SubjectCharacter,
     onDismiss: () -> Unit,
-    onOpenWeb: (Long) -> Unit,
+    onViewDetail: (Long) -> Unit,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -1167,16 +1137,10 @@ private fun CharacterImagePreviewDialog(
                     FilledTonalButton(
                         onClick = {
                             onDismiss()
-                            onOpenWeb(character.id)
+                            onViewDetail(character.id)
                         },
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("在 Bangumi 查看角色详情")
+                        Text("查看角色详情")
                     }
                 }
             }
@@ -1971,7 +1935,6 @@ private fun CollectionStatusBottomSheet(
     subjectType: SubjectType,
     onDismiss: () -> Unit,
     onSave: (type: CollectionType, rate: Int?, comment: String?, private: Boolean) -> Unit,
-    onOpenWebDelete: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedType by rememberSaveable {
@@ -2123,63 +2086,7 @@ private fun CollectionStatusBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // 5. 网页端删除收藏引导（Bangumi 官方未开放删除 API，需前往网页端操作）
-            if (currentCollection != null) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
-                    border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "删除此收藏",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Bangumi API 未开放删除接口，需在网页端操作",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        FilledTonalButton(
-                            onClick = onOpenWebDelete,
-                            colors =
-                                ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
-                                    contentColor = MaterialTheme.colorScheme.error,
-                                ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "前往网页端删除",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 6. 底部操作按钮
+            // 5. 底部操作按钮
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),

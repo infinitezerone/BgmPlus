@@ -1,9 +1,5 @@
 package com.infinitezerone.minibgm.feature.user
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,27 +23,21 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlusOne
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -56,18 +46,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -133,8 +119,6 @@ fun UserCollectionsContent(
             COLLECTION_TYPES.size
         }
     val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-    var managingCollection by remember { mutableStateOf<UserCollection?>(null) }
 
     // 左右滑动手势翻页时，通知外层加载新分类数据
     LaunchedEffect(pagerState.currentPage) {
@@ -251,7 +235,6 @@ fun UserCollectionsContent(
                                         isUpdating = uiState.updatingSubjectIds.contains(item.subjectId),
                                         onSubjectClick = onSubjectClick,
                                         onIncrementProgress = { onIncrementProgress(item) },
-                                        onManageClick = { managingCollection = item },
                                     )
                                 }
                             }
@@ -260,21 +243,6 @@ fun UserCollectionsContent(
                 }
             }
         }
-    }
-
-    managingCollection?.let { item ->
-        ManageCollectionBottomSheet(
-            collection = item,
-            onDismiss = { managingCollection = null },
-            onViewDetail = {
-                managingCollection = null
-                onSubjectClick(item.subjectId)
-            },
-            onOpenWebDelete = {
-                managingCollection = null
-                launchCustomTab(context, "https://bgm.tv/subject/${item.subjectId}")
-            },
-        )
     }
 }
 
@@ -404,7 +372,6 @@ private fun UserCollectionCard(
     isUpdating: Boolean,
     onSubjectClick: (Long) -> Unit,
     onIncrementProgress: () -> Unit,
-    onManageClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val subject = collection.subject
@@ -442,31 +409,14 @@ private fun UserCollectionCard(
             Column(
                 modifier = Modifier.weight(1f),
             ) {
-                Row(
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    IconButton(
-                        onClick = onManageClick,
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.MoreVert,
-                            contentDescription = "管理收藏",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
+                )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -663,159 +613,3 @@ private fun getSubjectTypeName(type: Int): String =
         6 -> "三次元"
         else -> "条目"
     }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ManageCollectionBottomSheet(
-    collection: UserCollection,
-    onDismiss: () -> Unit,
-    onViewDetail: () -> Unit,
-    onOpenWebDelete: () -> Unit,
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val subject = collection.subject
-    val title = subject?.displayName ?: "条目 #${collection.subjectId}"
-    val coverUrl = subject?.images?.bestImage.orEmpty()
-    val typeName = getSubjectTypeName(subject?.type ?: collection.subjectType)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            // 头部：条目基本信息
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CoverImage(
-                    url = coverUrl,
-                    contentDescription = title,
-                    modifier = Modifier.width(52.dp),
-                    cornerRadius = 8.dp,
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                    ) {
-                        Text(
-                            text = typeName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                    }
-                }
-            }
-
-            // 网页端删除/管理收藏引导
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
-                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "移出 / 删除此收藏",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Bangumi API 未开放删除接口，需在网页端操作",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    FilledTonalButton(
-                        onClick = onOpenWebDelete,
-                        colors =
-                            ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
-                                contentColor = MaterialTheme.colorScheme.error,
-                            ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "前往网页端删除",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-            }
-
-            // 详情入口与取消
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(text = "取消")
-                }
-                Button(
-                    onClick = onViewDetail,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(text = "查看条目详情")
-                }
-            }
-        }
-    }
-}
-
-/** 使用 Chrome Custom Tabs 打开网页 */
-private fun launchCustomTab(
-    context: Context,
-    url: String,
-) {
-    try {
-        val customTabsIntent =
-            CustomTabsIntent
-                .Builder()
-                .setShowTitle(true)
-                .setUrlBarHidingEnabled(true)
-                .build()
-        customTabsIntent.launchUrl(context, Uri.parse(url))
-    } catch (e: Exception) {
-        val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        context.startActivity(fallbackIntent)
-    }
-}

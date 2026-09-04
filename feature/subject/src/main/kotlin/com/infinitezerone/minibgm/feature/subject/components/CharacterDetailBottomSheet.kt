@@ -19,7 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -63,7 +63,6 @@ fun CharacterDetailBottomSheet(
     onDismiss: () -> Unit,
     onSubjectClick: (Long) -> Unit,
     onActorClick: (Long) -> Unit,
-    onOpenWeb: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
@@ -90,7 +89,7 @@ fun CharacterDetailBottomSheet(
                     .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // 1. 顶部标题栏（角色名、主角/配角徽章、外链与关闭）
+            // 1. 顶部标题栏（角色名、主角/配角徽章与关闭）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -124,23 +123,13 @@ fun CharacterDetailBottomSheet(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { onOpenWeb(characterId) }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = "在浏览器中打开",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = "关闭",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "关闭",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
                 }
             }
 
@@ -239,10 +228,10 @@ fun CharacterDetailBottomSheet(
                                     )
                                 }
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(12.dp),
+                                    modifier = Modifier.size(16.dp),
                                 )
                             }
                         }
