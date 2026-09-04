@@ -109,6 +109,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.infinitezerone.minibgm.core.common.TimeUtils
 import com.infinitezerone.minibgm.core.designsystem.component.CoverImage
+import com.infinitezerone.minibgm.core.designsystem.component.bbcode.BgmBbCodeContent
 import com.infinitezerone.minibgm.core.designsystem.theme.RatingGold
 import com.infinitezerone.minibgm.core.designsystem.theme.WishOrange
 import com.infinitezerone.minibgm.core.model.CollectionCount
@@ -2803,7 +2804,7 @@ private fun EpisodeCommentsSection(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = "本集暂无吐槽，点击右上角前往网页版发表首条讨论吧！",
+                    text = "本集暂无吐槽",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(14.dp),
@@ -2829,6 +2830,8 @@ private fun EpisodeCommentItem(
     comment: EpisodeComment,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+
     Surface(
         shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -2872,10 +2875,11 @@ private fun EpisodeCommentItem(
                 }
             }
 
-            Text(
-                text = comment.content.trim(),
+            BgmBbCodeContent(
+                content = comment.content,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
+                onUrlClick = { url -> launchCustomTab(context, url) },
             )
 
             // 点赞反应
@@ -2938,10 +2942,11 @@ private fun EpisodeCommentItem(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                Text(
-                                    text = reply.content.trim(),
+                                BgmBbCodeContent(
+                                    content = reply.content,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface,
+                                    onUrlClick = { url -> launchCustomTab(context, url) },
                                 )
                             }
                         }
@@ -3186,10 +3191,12 @@ private fun SubjectCommentItem(
         }
 
         if (comment.comment.isNotBlank()) {
-            Text(
-                text = comment.comment.trim(),
+            val context = LocalContext.current
+            BgmBbCodeContent(
+                content = comment.comment,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+                onUrlClick = { url -> launchCustomTab(context, url) },
             )
         }
     }

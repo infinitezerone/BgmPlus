@@ -17,4 +17,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.ktor3)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test)
 }
