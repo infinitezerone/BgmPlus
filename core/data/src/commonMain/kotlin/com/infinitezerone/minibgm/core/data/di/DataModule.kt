@@ -4,6 +4,8 @@ import com.infinitezerone.minibgm.core.data.repository.AuthRepository
 import com.infinitezerone.minibgm.core.data.repository.AuthRepositoryImpl
 import com.infinitezerone.minibgm.core.data.repository.CollectionRepository
 import com.infinitezerone.minibgm.core.data.repository.CollectionRepositoryImpl
+import com.infinitezerone.minibgm.core.data.repository.CommunityRepository
+import com.infinitezerone.minibgm.core.data.repository.CommunityRepositoryImpl
 import com.infinitezerone.minibgm.core.data.repository.ScheduleRepository
 import com.infinitezerone.minibgm.core.data.repository.ScheduleRepositoryImpl
 import com.infinitezerone.minibgm.core.data.repository.SearchRepository
@@ -17,6 +19,7 @@ import com.infinitezerone.minibgm.core.database.dao.SubjectDao
 import com.infinitezerone.minibgm.core.database.dao.UserCollectionDao
 import com.infinitezerone.minibgm.core.datastore.UserPreferencesDataSource
 import com.infinitezerone.minibgm.core.network.BangumiApiService
+import com.infinitezerone.minibgm.core.network.BangumiCommunityService
 import com.infinitezerone.minibgm.core.network.BangumiDataService
 import com.infinitezerone.minibgm.core.network.BgmAuthConfig
 import com.infinitezerone.minibgm.core.network.BgmTokenService
@@ -51,6 +54,11 @@ val dataModule =
             SearchRepositoryImpl(
                 apiService = get<BangumiApiService>(),
                 userPreferences = get<UserPreferencesDataSource>(),
+            )
+        }
+        single<CommunityRepository> {
+            CommunityRepositoryImpl(
+                communityService = get<BangumiCommunityService>(),
             )
         }
         single {

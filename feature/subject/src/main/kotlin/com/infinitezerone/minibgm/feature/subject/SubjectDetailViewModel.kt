@@ -5,13 +5,17 @@ import androidx.lifecycle.viewModelScope
 import com.infinitezerone.minibgm.core.common.AppResult
 import com.infinitezerone.minibgm.core.common.onError
 import com.infinitezerone.minibgm.core.data.repository.CollectionRepository
+import com.infinitezerone.minibgm.core.data.repository.CommunityRepository
 import com.infinitezerone.minibgm.core.data.repository.SubjectRepository
 import com.infinitezerone.minibgm.core.model.CollectionType
 import com.infinitezerone.minibgm.core.model.Episode
+import com.infinitezerone.minibgm.core.model.EpisodeComment
 import com.infinitezerone.minibgm.core.model.Subject
 import com.infinitezerone.minibgm.core.model.SubjectCharacter
+import com.infinitezerone.minibgm.core.model.SubjectComment
 import com.infinitezerone.minibgm.core.model.SubjectPerson
 import com.infinitezerone.minibgm.core.model.SubjectRelation
+import com.infinitezerone.minibgm.core.model.SubjectTopic
 import com.infinitezerone.minibgm.core.model.UserCollection
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,12 +34,18 @@ data class SubjectDetailUiState(
     val characters: List<SubjectCharacter> = emptyList(),
     val persons: List<SubjectPerson> = emptyList(),
     val relations: List<SubjectRelation> = emptyList(),
+    val subjectComments: List<SubjectComment> = emptyList(),
+    val subjectCommentTotal: Int = 0,
+    val subjectTopics: List<SubjectTopic> = emptyList(),
+    val episodeComments: Map<Long, List<EpisodeComment>> = emptyMap(),
+    val isEpisodeCommentsLoading: Boolean = false,
 )
 
 class SubjectDetailViewModel(
     private val subjectRepository: SubjectRepository,
     private val subjectId: Long,
     private val collectionRepository: CollectionRepository? = null,
+    private val communityRepository: CommunityRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SubjectDetailUiState())
     val uiState: StateFlow<SubjectDetailUiState> = _uiState.asStateFlow()
@@ -74,6 +84,8 @@ class SubjectDetailViewModel(
             val charactersDeferred = async { subjectRepository.fetchCharacters(subjectId) }
             val personsDeferred = async { subjectRepository.fetchPersons(subjectId) }
             val relationsDeferred = async { subjectRepository.fetchRelations(subjectId) }
+            val subjectCommentsDeferred = async { communityRepository?.getSubjectComments(subjectId, limit = 15) }
+            val subjectTopicsDeferred = async { communityRepository?.getSubjectTopics(subjectId, limit = 5) }
 
             val subjectResult = subjectDeferred.await()
             val episodesResult = episodesDeferred.await()
@@ -81,10 +93,15 @@ class SubjectDetailViewModel(
             val charactersResult = charactersDeferred.await()
             val personsResult = personsDeferred.await()
             val relationsResult = relationsDeferred.await()
+            val subjectCommentsResult = subjectCommentsDeferred.await()
+            val subjectTopicsResult = subjectTopicsDeferred.await()
 
             subjectResult.onError { _, message -> _uiState.update { it.copy(error = message) } }
             episodesResult.onError { _, message -> _uiState.update { it.copy(error = message) } }
             collectionResult?.onError { _, message -> _uiState.update { it.copy(error = message) } }
+
+            val commentsPage = (subjectCommentsResult as? AppResult.Success)?.data
+            val topics = (subjectTopicsResult as? AppResult.Success)?.data.orEmpty()
 
             _uiState.update { current ->
                 current.copy(
@@ -93,6 +110,9 @@ class SubjectDetailViewModel(
                     characters = (charactersResult as? AppResult.Success)?.data ?: current.characters,
                     persons = (personsResult as? AppResult.Success)?.data ?: current.persons,
                     relations = (relationsResult as? AppResult.Success)?.data ?: current.relations,
+                    subjectComments = commentsPage?.data ?: current.subjectComments,
+                    subjectCommentTotal = commentsPage?.total ?: current.subjectCommentTotal,
+                    subjectTopics = if (topics.isNotEmpty()) topics else current.subjectTopics,
                 )
             }
         }
@@ -190,6 +210,23 @@ class SubjectDetailViewModel(
             result?.onError { _, message ->
                 // 回滚
                 _uiState.update { it.copy(collection = previousCollection, error = message) }
+            }
+        }
+    }
+
+    /** 按需加载单集吐槽（带本地内存缓存，避免重复网络请求） */
+    fun loadEpisodeComments(episodeId: Long) {
+        if (_uiState.value.episodeComments.containsKey(episodeId)) return
+        val community = communityRepository ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isEpisodeCommentsLoading = true) }
+            val result = community.getEpisodeComments(episodeId)
+            _uiState.update { state ->
+                val comments = (result as? AppResult.Success)?.data.orEmpty()
+                state.copy(
+                    isEpisodeCommentsLoading = false,
+                    episodeComments = state.episodeComments + (episodeId to comments),
+                )
             }
         }
     }

@@ -11,7 +11,8 @@ val subjectModule =
             SubjectDetailViewModel(
                 subjectRepository = get(),
                 subjectId = subjectId,
-                collectionRepository = get(),
+                collectionRepository = getOrNull(),
+                communityRepository = getOrNull(),
             )
         }
     }

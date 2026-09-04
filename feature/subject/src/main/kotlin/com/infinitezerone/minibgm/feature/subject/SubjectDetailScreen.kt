@@ -29,8 +29,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -80,6 +82,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -107,17 +110,21 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.infinitezerone.minibgm.core.common.TimeUtils
 import com.infinitezerone.minibgm.core.designsystem.component.CoverImage
 import com.infinitezerone.minibgm.core.designsystem.theme.RatingGold
 import com.infinitezerone.minibgm.core.designsystem.theme.WishOrange
 import com.infinitezerone.minibgm.core.model.CollectionCount
 import com.infinitezerone.minibgm.core.model.CollectionType
 import com.infinitezerone.minibgm.core.model.Episode
+import com.infinitezerone.minibgm.core.model.EpisodeComment
 import com.infinitezerone.minibgm.core.model.Rating
 import com.infinitezerone.minibgm.core.model.Subject
 import com.infinitezerone.minibgm.core.model.SubjectCharacter
+import com.infinitezerone.minibgm.core.model.SubjectComment
 import com.infinitezerone.minibgm.core.model.SubjectPerson
 import com.infinitezerone.minibgm.core.model.SubjectRelation
+import com.infinitezerone.minibgm.core.model.SubjectTopic
 import com.infinitezerone.minibgm.core.model.SubjectType
 import com.infinitezerone.minibgm.core.model.Tag
 import com.infinitezerone.minibgm.core.model.UserCollection
@@ -133,6 +140,7 @@ enum class SubjectDetailTab(
 ) {
     EPISODES("📺 章节打卡"),
     DETAILS("📖 资料与演职员"),
+    COMMUNITY("💬 社区吐槽"),
 }
 
 private fun getTabLabel(
@@ -154,6 +162,7 @@ private fun getTabLabel(
                 SubjectType.GAME -> "🎮 游戏资料与主创"
                 SubjectType.ANIME, SubjectType.REAL -> "📖 资料与演职员"
             }
+        SubjectDetailTab.COMMUNITY -> "💬 社区吐槽"
     }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -382,10 +391,20 @@ fun SubjectDetailScreen(
                                                 text = {
                                                     Text(
                                                         text =
-                                                            if (tab == SubjectDetailTab.EPISODES && currentEpisodes.isNotEmpty()) {
-                                                                "$tabLabel (${currentEpisodes.size})"
-                                                            } else {
-                                                                tabLabel
+                                                            when (tab) {
+                                                                SubjectDetailTab.EPISODES ->
+                                                                    if (currentEpisodes.isNotEmpty()) {
+                                                                        "$tabLabel (${currentEpisodes.size})"
+                                                                    } else {
+                                                                        tabLabel
+                                                                    }
+                                                                SubjectDetailTab.COMMUNITY ->
+                                                                    if (uiState.subjectCommentTotal > 0) {
+                                                                        "$tabLabel (${uiState.subjectCommentTotal})"
+                                                                    } else {
+                                                                        tabLabel
+                                                                    }
+                                                                else -> tabLabel
                                                             },
                                                         fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Medium,
                                                     )
@@ -514,7 +533,23 @@ fun SubjectDetailScreen(
                                     }
 
                                     item(key = "web_discussion_section_details") {
-                                        SubjectCommunitySection(subjectId = subjectId)
+                                        SubjectCommunitySection(
+                                            subjectId = subjectId,
+                                            comments = uiState.subjectComments,
+                                            commentTotal = uiState.subjectCommentTotal,
+                                            topics = uiState.subjectTopics,
+                                        )
+                                    }
+                                }
+
+                                SubjectDetailTab.COMMUNITY -> {
+                                    item(key = "community_tab_section") {
+                                        SubjectCommunitySection(
+                                            subjectId = subjectId,
+                                            comments = uiState.subjectComments,
+                                            commentTotal = uiState.subjectCommentTotal,
+                                            topics = uiState.subjectTopics,
+                                        )
                                     }
                                 }
                             }
@@ -550,6 +585,9 @@ fun SubjectDetailScreen(
         EpisodeDetailBottomSheet(
             episode = ep,
             isWatched = isWatched,
+            comments = uiState.episodeComments[ep.id].orEmpty(),
+            isLoadingComments = uiState.isEpisodeCommentsLoading,
+            onLoadComments = { viewModel.loadEpisodeComments(ep.id) },
             onDismiss = { selectedEpisodeForDetail = null },
             onToggleWatched = { episode, watched ->
                 val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
@@ -2493,12 +2531,16 @@ private fun EpisodeGrid(
 private fun EpisodeDetailBottomSheet(
     episode: Episode,
     isWatched: Boolean,
+    comments: List<EpisodeComment>,
+    isLoadingComments: Boolean,
+    onLoadComments: () -> Unit,
     onDismiss: () -> Unit,
     onToggleWatched: (episode: Episode, isWatched: Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val context = LocalContext.current
+    val scrollState = rememberScrollState()
     val group = EpisodeGroup.fromType(episode.type)
     val episodeNumberText =
         if (episode.type == 0) {
@@ -2506,6 +2548,10 @@ private fun EpisodeDetailBottomSheet(
         } else {
             "${group.label} ${episode.sort.toInt()}"
         }
+
+    LaunchedEffect(episode.id) {
+        onLoadComments()
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -2516,8 +2562,9 @@ private fun EpisodeDetailBottomSheet(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .verticalScroll(scrollState)
                     .padding(horizontal = 20.dp)
-                    .padding(bottom = 32.dp),
+                    .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // 1. 分集序号与标题 (中文名 & 原名)
@@ -2627,161 +2674,7 @@ private fun EpisodeDetailBottomSheet(
                 }
             }
 
-            // 3. 本集讨论与吐槽聚焦卡片
-            val isHotEpisode = episode.comment >= 50
-            Card(
-                onClick = {
-                    launchCustomTab(context, "$BGM_BASE_URL/ep/${episode.id}")
-                },
-                shape = RoundedCornerShape(12.dp),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor =
-                            if (episode.comment > 0) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainerHigh
-                            },
-                    ),
-                border =
-                    BorderStroke(
-                        0.8.dp,
-                        if (episode.comment > 0) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                        } else {
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        },
-                    ),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color =
-                                if (isHotEpisode) {
-                                    WishOrange
-                                } else if (episode.comment > 0) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                },
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector =
-                                        if (isHotEpisode) {
-                                            Icons.Filled.LocalFireDepartment
-                                        } else {
-                                            Icons.Filled.ChatBubbleOutline
-                                        },
-                                    contentDescription = null,
-                                    tint =
-                                        if (episode.comment > 0) {
-                                            Color.White
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Text(
-                                    text = "本集讨论与吐槽",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                if (episode.comment > 0) {
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color =
-                                            if (isHotEpisode) {
-                                                WishOrange
-                                            } else {
-                                                MaterialTheme.colorScheme.primary
-                                            },
-                                    ) {
-                                        Text(
-                                            text = "${episode.comment} 条吐槽",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                                        )
-                                    }
-                                }
-                            }
-                            Text(
-                                text =
-                                    if (episode.comment > 0) {
-                                        "名场面吐槽、细节考察与实时交流"
-                                    } else {
-                                        "暂无讨论，点击抢先发表首条吐槽！"
-                                    },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = null,
-                        tint = if (isHotEpisode) WishOrange else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-            // 4. 剧情梗概 (Full desc)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = "剧情梗概",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = if (episode.desc.isNotBlank()) episode.desc.trim() else "暂无分集剧情简介",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color =
-                            if (episode.desc.isNotBlank()) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        modifier = Modifier.padding(12.dp),
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 5. "已看过 / 未看" toggle button with instant check-in
+            // 3. "已看过 / 未看" toggle button with instant check-in
             if (isWatched) {
                 FilledTonalButton(
                     onClick = {
@@ -2811,6 +2704,276 @@ private fun EpisodeDetailBottomSheet(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = "标记为看过 (打卡)")
+                }
+            }
+
+            // 4. 剧情梗概 (Full desc)
+            if (episode.desc.isNotBlank()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "剧情梗概",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = episode.desc.trim(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+            // 5. 单集吐槽与讨论 (Episode Comments Section)
+            EpisodeCommentsSection(
+                episode = episode,
+                comments = comments,
+                isLoading = isLoadingComments,
+            )
+        }
+    }
+}
+
+/** 单集吐槽与讨论板块 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun EpisodeCommentsSection(
+    episode: Episode,
+    comments: List<EpisodeComment>,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "💬 本集吐槽与讨论",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (comments.isNotEmpty() || episode.comment > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Text(
+                            text = "${if (comments.isNotEmpty()) comments.size else episode.comment} 条",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+
+            TextButton(
+                onClick = { launchCustomTab(context, "$BGM_BASE_URL/ep/${episode.id}") },
+            ) {
+                Text("网页版", style = MaterialTheme.typography.labelSmall)
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp).padding(start = 2.dp),
+                )
+            }
+        }
+
+        if (isLoading && comments.isEmpty()) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 20.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Text(
+                        text = "正在获取单集吐槽...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else if (comments.isEmpty()) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = "本集暂无吐槽，点击右上角前往网页版发表首条讨论吧！",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(14.dp),
+                )
+            }
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                comments.forEach { comment ->
+                    EpisodeCommentItem(comment = comment)
+                }
+            }
+        }
+    }
+}
+
+/** 单条吐槽卡片项（含头像、发布者、内容、点赞反应与楼中楼） */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun EpisodeCommentItem(
+    comment: EpisodeComment,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AsyncImage(
+                    model =
+                        comment.user
+                            ?.avatar
+                            ?.bestAvatar
+                            .orEmpty(),
+                    contentDescription = comment.user?.displayName,
+                    modifier =
+                        Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                )
+                Text(
+                    text = comment.user?.displayName ?: "用户",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                if (comment.createdAt > 0) {
+                    Text(
+                        text = TimeUtils.formatEpochSecondsToDate(comment.createdAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                }
+            }
+
+            Text(
+                text = comment.content.trim(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+
+            // 点赞反应
+            if (comment.reactions.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    comment.reactions.forEach { reaction ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        ) {
+                            Text(
+                                text = "❤️ ${reaction.count}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 楼中楼回复
+            if (comment.replies.isNotEmpty()) {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                shape = RoundedCornerShape(8.dp),
+                            ).padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    comment.replies.forEach { reply ->
+                        Row(
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            AsyncImage(
+                                model =
+                                    reply.user
+                                        ?.avatar
+                                        ?.bestAvatar
+                                        .orEmpty(),
+                                contentDescription = reply.user?.displayName,
+                                modifier =
+                                    Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = reply.user?.displayName ?: "回复",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Text(
+                                    text = reply.content.trim(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -2891,69 +3054,219 @@ private fun EpisodeDiscussionFooter(
     }
 }
 
-/** 资料标签页底部：全网讨论与社区交流三大模块 (短评、小组讨论版、长评日志) */
+/** 社区标签页 / 讨论模块：原生展示短评精选、小组话题及网页入口 */
 @Composable
 private fun SubjectCommunitySection(
     subjectId: Long,
+    comments: List<SubjectComment>,
+    commentTotal: Int,
+    topics: List<SubjectTopic>,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            text = "全网讨论与社区交流",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
+        // 1. 全网即时短评
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ChatBubbleOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        text = "全网短评吐槽",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (commentTotal > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                        ) {
+                            Text(
+                                text = "$commentTotal",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
 
+                TextButton(
+                    onClick = { launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/comments") },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text("查看全部", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+
+            if (comments.isEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "暂无短评，快去发表你的看法吧~",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            } else {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        comments.take(5).forEachIndexed { index, comment ->
+                            SubjectCommentItem(comment = comment)
+                            if (index < comments.take(5).lastIndex) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. 讨论版话题
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Forum,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        text = "讨论版交流区",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (topics.isNotEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Text(
+                                text = "${topics.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
+
+                TextButton(
+                    onClick = { launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/board") },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text("前往讨论版", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+
+            if (topics.isEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "暂无相关讨论帖",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            } else {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        topics.take(6).forEachIndexed { index, topic ->
+                            SubjectTopicItem(
+                                topic = topic,
+                                onClick = { launchCustomTab(context, "$BGM_BASE_URL/group/topic/${topic.id}") },
+                            )
+                            if (index < topics.take(6).lastIndex) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. 更多深度社区入口 (长评日志 / 影评)
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                ),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
             border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // 1. 全网短评吐槽箱
-                CommunityActionTile(
-                    icon = Icons.Filled.ChatBubbleOutline,
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    tag = "即时短评",
-                    tagContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    tagContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    title = "全网短评吐槽箱",
-                    description = "全网观众即时打分、短评吐槽与真实口碑速览",
-                    onClick = {
-                        launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/comments")
-                    },
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                // 2. 讨论版交流区
-                CommunityActionTile(
-                    icon = Icons.Filled.Forum,
-                    iconTint = MaterialTheme.colorScheme.secondary,
-                    tag = "深度讨论",
-                    tagContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    tagContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    title = "讨论版交流区",
-                    description = "剧情推理解析、细节伏笔考察、名场面研讨与问答",
-                    onClick = {
-                        launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/board")
-                    },
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                // 3. 长评与影评日志
                 CommunityActionTile(
                     icon = Icons.Filled.RateReview,
                     iconTint = MaterialTheme.colorScheme.tertiary,
@@ -2966,6 +3279,152 @@ private fun SubjectCommunitySection(
                         launchCustomTab(context, "$BGM_BASE_URL/subject/$subjectId/reviews")
                     },
                 )
+            }
+        }
+    }
+}
+
+/** 单条短评卡片组件 */
+@Composable
+private fun SubjectCommentItem(
+    comment: SubjectComment,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AsyncImage(
+                    model = comment.user?.avatar?.bestAvatar,
+                    contentDescription = comment.user?.displayName,
+                    modifier = Modifier.size(28.dp).clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                )
+                Text(
+                    text = comment.user?.displayName.orEmpty(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (comment.rate > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = RatingGold.copy(alpha = 0.15f),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = null,
+                                tint = RatingGold,
+                                modifier = Modifier.size(10.dp),
+                            )
+                            Text(
+                                text = "${comment.rate}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = RatingGold,
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (comment.updatedAt > 0) {
+                Text(
+                    text = TimeUtils.formatEpochSecondsToDate(comment.updatedAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            }
+        }
+
+        if (comment.comment.isNotBlank()) {
+            Text(
+                text = comment.comment.trim(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+/** 讨论帖条目组件 */
+@Composable
+private fun SubjectTopicItem(
+    topic: SubjectTopic,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        color = Color.Transparent,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f).padding(end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = topic.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = topic.creator?.displayName.orEmpty(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (topic.createdAt > 0) {
+                        Text(
+                            text = "·",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = TimeUtils.formatEpochSecondsToDate(topic.createdAt),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            if (topic.replyCount > 0) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ) {
+                    Text(
+                        text = "${topic.replyCount} 回复",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
             }
         }
     }

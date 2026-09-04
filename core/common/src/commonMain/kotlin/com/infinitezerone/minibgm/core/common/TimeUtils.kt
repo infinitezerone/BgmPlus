@@ -70,4 +70,19 @@ object TimeUtils {
             0
         }
     }
+
+    /**
+     * 将秒级时间戳格式化为本地日期字符串 (yyyy-MM-dd)
+     */
+    fun formatEpochSecondsToDate(epochSeconds: Long): String {
+        if (epochSeconds <= 0) return ""
+        return try {
+            val instant = Instant.fromEpochSeconds(epochSeconds)
+            val local = instant.toLocalDateTime(timeZoneCst)
+            @Suppress("DEPRECATION")
+            "${local.year}-${local.monthNumber.toString().padStart(2, '0')}-${local.dayOfMonth.toString().padStart(2, '0')}"
+        } catch (_: Exception) {
+            ""
+        }
+    }
 }

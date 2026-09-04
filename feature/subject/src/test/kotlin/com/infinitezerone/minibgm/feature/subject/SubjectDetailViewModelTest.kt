@@ -2,6 +2,11 @@ package com.infinitezerone.minibgm.feature.subject
 
 import com.infinitezerone.minibgm.core.common.AppResult
 import com.infinitezerone.minibgm.core.model.CollectionType
+import com.infinitezerone.minibgm.core.model.CommentUser
+import com.infinitezerone.minibgm.core.model.EpisodeComment
+import com.infinitezerone.minibgm.core.model.SubjectComment
+import com.infinitezerone.minibgm.core.model.SubjectCommentPage
+import com.infinitezerone.minibgm.core.model.SubjectTopic
 import com.infinitezerone.minibgm.core.testing.data.sampleCharacterList
 import com.infinitezerone.minibgm.core.testing.data.sampleEpisodeList
 import com.infinitezerone.minibgm.core.testing.data.samplePersonList
@@ -9,6 +14,7 @@ import com.infinitezerone.minibgm.core.testing.data.sampleRelationList
 import com.infinitezerone.minibgm.core.testing.data.sampleSubject
 import com.infinitezerone.minibgm.core.testing.data.sampleUserCollection
 import com.infinitezerone.minibgm.core.testing.repository.FakeCollectionRepository
+import com.infinitezerone.minibgm.core.testing.repository.FakeCommunityRepository
 import com.infinitezerone.minibgm.core.testing.repository.FakeSubjectRepository
 import com.infinitezerone.minibgm.core.testing.util.MainDispatcherRule
 import kotlinx.coroutines.test.runTest
@@ -319,5 +325,81 @@ class SubjectDetailViewModelTest {
             val optimistic = viewModel.uiState.value.collection
             assertEquals(1, optimistic?.subjectType)
             assertEquals(CollectionType.DOING.value, optimistic?.type)
+        }
+
+    @Test
+    fun communityRepository_loadsCommentsAndTopicsIntoUiState() =
+        runTest {
+            val sampleComments =
+                listOf(
+                    SubjectComment(
+                        id = 101L,
+                        user = CommentUser(id = 1L, username = "testuser", nickname = "测试用户"),
+                        rate = 8,
+                        comment = "很棒的作品！",
+                    ),
+                )
+            val sampleTopics =
+                listOf(
+                    SubjectTopic(
+                        id = 201L,
+                        title = "关于大结局的深度探讨",
+                        creator = CommentUser(id = 2L, username = "analyst", nickname = "考据党"),
+                        replyCount = 15,
+                    ),
+                )
+            val communityRepo =
+                FakeCommunityRepository().apply {
+                    setSubjectComments(
+                        sampleSubject.id,
+                        SubjectCommentPage(total = 42, data = sampleComments),
+                    )
+                    setSubjectTopics(sampleSubject.id, sampleTopics)
+                }
+
+            val viewModel =
+                SubjectDetailViewModel(
+                    subjectRepository = FakeSubjectRepository(),
+                    subjectId = sampleSubject.id,
+                    communityRepository = communityRepo,
+                )
+            testScheduler.advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(sampleComments, state.subjectComments)
+            assertEquals(42, state.subjectCommentTotal)
+            assertEquals(sampleTopics, state.subjectTopics)
+        }
+
+    @Test
+    fun loadEpisodeComments_populatesEpisodeCommentsMap() =
+        runTest {
+            val epId = 9999L
+            val comments =
+                listOf(
+                    EpisodeComment(
+                        id = 1L,
+                        user = CommentUser(id = 1L, username = "animefan", nickname = "漫迷"),
+                        content = "这一集神展开！",
+                    ),
+                )
+            val communityRepo =
+                FakeCommunityRepository().apply {
+                    setEpisodeComments(epId, comments)
+                }
+
+            val viewModel =
+                SubjectDetailViewModel(
+                    subjectRepository = FakeSubjectRepository(),
+                    subjectId = sampleSubject.id,
+                    communityRepository = communityRepo,
+                )
+
+            viewModel.loadEpisodeComments(epId)
+            testScheduler.advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(comments, state.episodeComments[epId])
+            assertFalse(state.isEpisodeCommentsLoading)
         }
 }
