@@ -43,6 +43,7 @@ import com.infinitezerone.minibgm.core.designsystem.theme.BadgeClassic
 import com.infinitezerone.minibgm.core.designsystem.theme.RatingGold
 import com.infinitezerone.minibgm.core.designsystem.theme.StatusAiring
 import com.infinitezerone.minibgm.core.model.Subject
+import com.infinitezerone.minibgm.core.model.SubjectComment
 
 /**
  * 双列安利瀑布流卡片（小红书 / 小黑盒形态）：
@@ -62,6 +63,7 @@ fun WaterfallSubjectCard(
     modifier: Modifier = Modifier,
     selectedTags: Set<String> = emptySet(),
     onTagClick: (String) -> Unit = {},
+    hotComment: SubjectComment? = null,
 ) {
     val primaryTitle = subject.displayName
     val rating = subject.rating
@@ -277,8 +279,51 @@ fun WaterfallSubjectCard(
                     Spacer(modifier = Modifier.height(4.dp))
                 }
 
-                // 带有引号包裹的情绪化剧情安利句
-                if (!summaryQuote.isNullOrBlank()) {
+                // 社区精选热评或剧情安利句
+                if (hotComment != null && hotComment.comment.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    text = "💬 " + (hotComment.user?.displayName ?: "同好"),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                                if (hotComment.rate > 0) {
+                                    Text(
+                                        text = "★${hotComment.rate}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = RatingGold,
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "“${hotComment.comment.trim()}”",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontStyle = FontStyle.Italic,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                } else if (!summaryQuote.isNullOrBlank()) {
                     Text(
                         text = "“ ${summaryQuote.take(50)} ”",
                         style = MaterialTheme.typography.bodySmall,

@@ -64,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.infinitezerone.minibgm.core.model.Subject
+import com.infinitezerone.minibgm.core.model.SubjectComment
 import com.infinitezerone.minibgm.feature.search.components.ExploreFilterBottomSheet
 import com.infinitezerone.minibgm.feature.search.components.ExploreSpotlightCard
 import com.infinitezerone.minibgm.feature.search.components.WaterfallSubjectCard
@@ -218,6 +219,7 @@ fun ExploreScreen(
                             WaterfallGridList(
                                 subjects = uiState.subjects,
                                 wishedSubjectIds = uiState.wishedSubjectIds,
+                                hotComments = uiState.hotComments,
                                 selectedTags = uiState.selectedTags,
                                 onTagClick = viewModel::onTagToggle,
                                 hasMore = uiState.hasMore,
@@ -453,6 +455,7 @@ private fun ActiveFilterChip(
 private fun WaterfallGridList(
     subjects: List<Subject>,
     wishedSubjectIds: Set<Long>,
+    hotComments: Map<Long, SubjectComment>,
     selectedTags: Set<String>,
     onTagClick: (String) -> Unit,
     hasMore: Boolean,
@@ -495,6 +498,7 @@ private fun WaterfallGridList(
                 ExploreSpotlightCard(
                     subject = featured,
                     isWished = wishedSubjectIds.contains(featured.id),
+                    hotComment = hotComments[featured.id],
                     selectedTags = selectedTags,
                     onTagClick = onTagClick,
                     onSubjectClick = onSubjectClick,
@@ -510,6 +514,7 @@ private fun WaterfallGridList(
             WaterfallSubjectCard(
                 subject = subject,
                 isWished = wishedSubjectIds.contains(subject.id),
+                hotComment = hotComments[subject.id],
                 selectedTags = selectedTags,
                 onTagClick = onTagClick,
                 onSubjectClick = onSubjectClick,

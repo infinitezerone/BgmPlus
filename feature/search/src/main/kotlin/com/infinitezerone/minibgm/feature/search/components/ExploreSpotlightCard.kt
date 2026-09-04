@@ -43,6 +43,7 @@ import com.infinitezerone.minibgm.core.designsystem.theme.BadgeClassic
 import com.infinitezerone.minibgm.core.designsystem.theme.RatingGold
 import com.infinitezerone.minibgm.core.designsystem.theme.StatusAiring
 import com.infinitezerone.minibgm.core.model.Subject
+import com.infinitezerone.minibgm.core.model.SubjectComment
 
 /**
  * 发现流顶部「今日焦点 / 深度安利」大卡（打破千篇一律的网格货架，注入编辑感与视觉重心）：
@@ -60,6 +61,7 @@ fun ExploreSpotlightCard(
     modifier: Modifier = Modifier,
     selectedTags: Set<String> = emptySet(),
     onTagClick: (String) -> Unit = {},
+    hotComment: SubjectComment? = null,
 ) {
     val rating = subject.rating
     val score = rating?.score ?: 0.0
@@ -221,7 +223,42 @@ fun ExploreSpotlightCard(
                         overflow = TextOverflow.Ellipsis,
                     )
 
-                    if (storyHook.isNotBlank()) {
+                    if (hotComment != null && hotComment.comment.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                            ) {
+                                Text(
+                                    text = "🔥 社区热评" + if (hotComment.rate > 0) " ★${hotComment.rate}" else "",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                )
+                            }
+                            if (!hotComment.user?.displayName.isNullOrBlank()) {
+                                Text(
+                                    text = "@${hotComment.user?.displayName}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.75f),
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "“ ${hotComment.comment.trim()} ”",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.92f),
+                            fontStyle = FontStyle.Italic,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    } else if (storyHook.isNotBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "“ $storyHook ”",

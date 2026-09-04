@@ -5,10 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.infinitezerone.minibgm.core.common.AppResult
 import com.infinitezerone.minibgm.core.data.repository.AuthRepository
 import com.infinitezerone.minibgm.core.data.repository.CollectionRepository
+import com.infinitezerone.minibgm.core.data.repository.CommunityRepository
 import com.infinitezerone.minibgm.core.data.repository.SearchRepository
 import com.infinitezerone.minibgm.core.model.CollectionType
 import com.infinitezerone.minibgm.core.model.SearchFilter
 import com.infinitezerone.minibgm.core.model.SearchSubjectsRequest
+import com.infinitezerone.minibgm.core.model.Subject
+import com.infinitezerone.minibgm.core.model.SubjectComment
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,18 +30,21 @@ import kotlinx.coroutines.launch
  * - 支持类型切换 [onCategorySelect]（动画/书籍/游戏/音乐/全部）；
  * - 支持预设与自定义标签筛选 [onTagSelect]、[onCustomTagSubmit]；
  * - 支持排序切换 [onSortSelect]（热门/评分/排名）；
- * - 支持下拉刷新 [refresh]、上拉无限分页加载更多 [loadMore] 与错误重试 [retry]。
+ * - 支持下拉刷新 [refresh]、上拉无限分页加载更多 [loadMore] 与错误重试 [retry]；
+ * - 异步为探索条目注入真实社区热评 [fetchHotCommentsForSubjects]。
  */
 class ExploreViewModel(
     private val searchRepository: SearchRepository,
     private val collectionRepository: CollectionRepository,
     private val authRepository: AuthRepository,
+    private val communityRepository: CommunityRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ExploreUiState())
     val uiState: StateFlow<ExploreUiState> = _uiState.asStateFlow()
 
     private var fetchJob: Job? = null
     private var loadMoreJob: Job? = null
+    private var hotCommentsJob: Job? = null
 
     init {
         observeAuth()
@@ -246,6 +252,7 @@ class ExploreViewModel(
                                 pageOffset = offset + newSubjects.size,
                             )
                         }
+                        fetchHotCommentsForSubjects(newSubjects)
                     }
 
                     is AppResult.Error -> {
@@ -265,14 +272,15 @@ class ExploreViewModel(
     private fun loadDiscovery(isRefresh: Boolean = false) {
         fetchJob?.cancel()
         loadMoreJob?.cancel()
+        hotCommentsJob?.cancel()
         val currentState = _uiState.value
         fetchJob =
             viewModelScope.launch {
                 _uiState.update {
                     if (isRefresh) {
-                        it.copy(isRefreshing = true, error = null)
+                        it.copy(isRefreshing = true, hotComments = emptyMap(), error = null)
                     } else {
-                        it.copy(isLoading = true, error = null)
+                        it.copy(isLoading = true, hotComments = emptyMap(), error = null)
                     }
                 }
 
@@ -311,6 +319,7 @@ class ExploreViewModel(
                                 error = null,
                             )
                         }
+                        fetchHotCommentsForSubjects(result.data)
                     }
 
                     is AppResult.Error -> {
@@ -329,6 +338,50 @@ class ExploreViewModel(
                 }
             }
     }
+
+    /**
+     * 异步为当前探索列表中的条目拉取真实社区热评
+     */
+    private fun fetchHotCommentsForSubjects(subjects: List<Subject>) {
+        val repo = communityRepository ?: return
+        if (subjects.isEmpty()) return
+
+        hotCommentsJob?.cancel()
+        hotCommentsJob =
+            viewModelScope.launch {
+                // 1. 优先并发抓取第 1 个条目（即 ExploreSpotlightCard 焦点大卡）
+                val firstSubject = subjects.firstOrNull()
+                if (firstSubject != null && !_uiState.value.hotComments.containsKey(firstSubject.id)) {
+                    val result = repo.getSubjectComments(firstSubject.id, limit = 5)
+                    if (result is AppResult.Success) {
+                        val best = selectBestComment(result.data.data)
+                        if (best != null) {
+                            _uiState.update {
+                                it.copy(hotComments = it.hotComments + (firstSubject.id to best))
+                            }
+                        }
+                    }
+                }
+
+                // 2. 依次轻量抓取前 8 个瀑布流条目的热评
+                val targets = subjects.drop(1).take(8).filter { !_uiState.value.hotComments.containsKey(it.id) }
+                for (target in targets) {
+                    val result = repo.getSubjectComments(target.id, limit = 3)
+                    if (result is AppResult.Success) {
+                        val best = selectBestComment(result.data.data)
+                        if (best != null) {
+                            _uiState.update {
+                                it.copy(hotComments = it.hotComments + (target.id to best))
+                            }
+                        }
+                    }
+                }
+            }
+    }
+
+    private fun selectBestComment(comments: List<SubjectComment>): SubjectComment? =
+        comments.firstOrNull { it.comment.isNotBlank() && it.comment.length in 8..120 }
+            ?: comments.firstOrNull { it.comment.isNotBlank() }
 
     companion object {
         private const val PAGE_SIZE = 20
