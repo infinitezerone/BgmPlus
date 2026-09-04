@@ -80,7 +80,47 @@ class SubjectRepositoryImplTest {
 
         override suspend fun getSubjectCharacters(id: Long): List<SubjectCharacter> = emptyList()
 
+        override suspend fun getCharacter(id: Long): com.infinitezerone.minibgm.core.model.CharacterDetail =
+            if (shouldThrow) {
+                error("Network error")
+            } else {
+                com.infinitezerone.minibgm.core.model
+                    .CharacterDetail(id = id, name = "フリーレン")
+            }
+
+        override suspend fun getCharacterSubjects(id: Long): List<com.infinitezerone.minibgm.core.model.RelatedWork> =
+            if (shouldThrow) {
+                error(
+                    "Network error",
+                )
+            } else {
+                listOf(
+                    com.infinitezerone.minibgm.core.model
+                        .RelatedWork(id = 100L, name = "葬送のフリーレン"),
+                )
+            }
+
         override suspend fun getSubjectPersons(id: Long): List<SubjectPerson> = emptyList()
+
+        override suspend fun getPerson(id: Long): com.infinitezerone.minibgm.core.model.PersonDetail =
+            if (shouldThrow) {
+                error("Network error")
+            } else {
+                com.infinitezerone.minibgm.core.model
+                    .PersonDetail(id = id, name = "種﨑敦美")
+            }
+
+        override suspend fun getPersonSubjects(id: Long): List<com.infinitezerone.minibgm.core.model.RelatedWork> =
+            if (shouldThrow) {
+                error(
+                    "Network error",
+                )
+            } else {
+                listOf(
+                    com.infinitezerone.minibgm.core.model
+                        .RelatedWork(id = 100L, name = "葬送のフリーレン"),
+                )
+            }
 
         override suspend fun getSubjectRelations(id: Long): List<SubjectRelation> = emptyList()
 

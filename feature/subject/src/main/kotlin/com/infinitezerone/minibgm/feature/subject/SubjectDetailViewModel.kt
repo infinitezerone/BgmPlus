@@ -7,9 +7,12 @@ import com.infinitezerone.minibgm.core.common.onError
 import com.infinitezerone.minibgm.core.data.repository.CollectionRepository
 import com.infinitezerone.minibgm.core.data.repository.CommunityRepository
 import com.infinitezerone.minibgm.core.data.repository.SubjectRepository
+import com.infinitezerone.minibgm.core.model.CharacterDetail
 import com.infinitezerone.minibgm.core.model.CollectionType
 import com.infinitezerone.minibgm.core.model.Episode
 import com.infinitezerone.minibgm.core.model.EpisodeComment
+import com.infinitezerone.minibgm.core.model.PersonDetail
+import com.infinitezerone.minibgm.core.model.RelatedWork
 import com.infinitezerone.minibgm.core.model.Subject
 import com.infinitezerone.minibgm.core.model.SubjectCharacter
 import com.infinitezerone.minibgm.core.model.SubjectComment
@@ -36,6 +39,13 @@ data class SubjectDetailUiState(
     val relations: List<SubjectRelation> = emptyList(),
     val subjectComments: List<SubjectComment> = emptyList(),
     val subjectCommentTotal: Int = 0,
+    val isLoadingMoreComments: Boolean = false,
+    val hasMoreComments: Boolean = true,
+    val selectedCharacterDetail: CharacterDetail? = null,
+    val selectedCharacterWorks: List<RelatedWork> = emptyList(),
+    val selectedPersonDetail: PersonDetail? = null,
+    val selectedPersonWorks: List<RelatedWork> = emptyList(),
+    val isLoadingEntityDetail: Boolean = false,
     val subjectTopics: List<SubjectTopic> = emptyList(),
     val episodeComments: Map<Long, List<EpisodeComment>> = emptyMap(),
     val isEpisodeCommentsLoading: Boolean = false,
@@ -112,6 +122,7 @@ class SubjectDetailViewModel(
                     relations = (relationsResult as? AppResult.Success)?.data ?: current.relations,
                     subjectComments = commentsPage?.data ?: current.subjectComments,
                     subjectCommentTotal = commentsPage?.total ?: current.subjectCommentTotal,
+                    hasMoreComments = (commentsPage?.data?.size ?: 0) < (commentsPage?.total ?: 0),
                     subjectTopics = if (topics.isNotEmpty()) topics else current.subjectTopics,
                 )
             }
@@ -228,6 +239,105 @@ class SubjectDetailViewModel(
                     episodeComments = state.episodeComments + (episodeId to comments),
                 )
             }
+        }
+    }
+
+    /** 分页加载更多全网短评吐槽 */
+    fun loadMoreSubjectComments() {
+        val currentState = _uiState.value
+        if (currentState.isLoadingMoreComments || !currentState.hasMoreComments) return
+        val community = communityRepository ?: return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingMoreComments = true) }
+            val offset = currentState.subjectComments.size
+            val result = community.getSubjectComments(subjectId = subjectId, limit = 20, offset = offset)
+            _uiState.update { state ->
+                when (result) {
+                    is AppResult.Success -> {
+                        val newPage = result.data
+                        val existingIds = state.subjectComments.map { c -> c.id }.toSet()
+                        val uniqueNew = newPage.data.filter { c -> c.id !in existingIds }
+                        val updatedList = state.subjectComments + uniqueNew
+                        val total = if (newPage.total > 0) newPage.total else state.subjectCommentTotal
+                        state.copy(
+                            isLoadingMoreComments = false,
+                            subjectComments = updatedList,
+                            subjectCommentTotal = total,
+                            hasMoreComments = updatedList.size < total && newPage.data.isNotEmpty(),
+                        )
+                    }
+                    is AppResult.Error -> {
+                        state.copy(isLoadingMoreComments = false)
+                    }
+                    is AppResult.Loading -> state
+                }
+            }
+        }
+    }
+
+    /** 按需拉取角色详情及关联作品 */
+    fun loadCharacterDetail(characterId: Long) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoadingEntityDetail = true,
+                    selectedPersonDetail = null,
+                    selectedPersonWorks = emptyList(),
+                )
+            }
+            val detailDeferred = async { subjectRepository.fetchCharacterDetail(characterId) }
+            val worksDeferred = async { subjectRepository.fetchCharacterSubjects(characterId) }
+
+            val detailResult = detailDeferred.await()
+            val worksResult = worksDeferred.await()
+
+            _uiState.update { state ->
+                state.copy(
+                    isLoadingEntityDetail = false,
+                    selectedCharacterDetail = (detailResult as? AppResult.Success)?.data,
+                    selectedCharacterWorks = (worksResult as? AppResult.Success)?.data.orEmpty(),
+                )
+            }
+        }
+    }
+
+    /** 按需拉取人物/制作人员详情及关联作品 */
+    fun loadPersonDetail(personId: Long) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoadingEntityDetail = true,
+                    selectedCharacterDetail = null,
+                    selectedCharacterWorks = emptyList(),
+                )
+            }
+            val detailDeferred = async { subjectRepository.fetchPersonDetail(personId) }
+            val worksDeferred = async { subjectRepository.fetchPersonSubjects(personId) }
+
+            val detailResult = detailDeferred.await()
+            val worksResult = worksDeferred.await()
+
+            _uiState.update { state ->
+                state.copy(
+                    isLoadingEntityDetail = false,
+                    selectedPersonDetail = (detailResult as? AppResult.Success)?.data,
+                    selectedPersonWorks = (worksResult as? AppResult.Success)?.data.orEmpty(),
+                )
+            }
+        }
+    }
+
+    /** 关闭角色或人物详情底栏并清空状态 */
+    fun clearEntityDetail() {
+        _uiState.update {
+            it.copy(
+                selectedCharacterDetail = null,
+                selectedCharacterWorks = emptyList(),
+                selectedPersonDetail = null,
+                selectedPersonWorks = emptyList(),
+                isLoadingEntityDetail = false,
+            )
         }
     }
 }

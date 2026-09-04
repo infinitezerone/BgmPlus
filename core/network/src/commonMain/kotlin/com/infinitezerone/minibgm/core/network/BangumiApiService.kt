@@ -1,5 +1,8 @@
 package com.infinitezerone.minibgm.core.network
 
+import com.infinitezerone.minibgm.core.model.CharacterDetail
+import com.infinitezerone.minibgm.core.model.PersonDetail
+import com.infinitezerone.minibgm.core.model.RelatedWork
 import com.infinitezerone.minibgm.core.model.SearchSubjectsRequest
 import com.infinitezerone.minibgm.core.model.Subject
 import com.infinitezerone.minibgm.core.model.SubjectCharacter
@@ -32,7 +35,15 @@ interface BangumiApiService {
 
     suspend fun getSubjectCharacters(id: Long): List<SubjectCharacter>
 
+    suspend fun getCharacter(id: Long): CharacterDetail
+
+    suspend fun getCharacterSubjects(id: Long): List<RelatedWork>
+
     suspend fun getSubjectPersons(id: Long): List<SubjectPerson>
+
+    suspend fun getPerson(id: Long): PersonDetail
+
+    suspend fun getPersonSubjects(id: Long): List<RelatedWork>
 
     suspend fun getSubjectRelations(id: Long): List<SubjectRelation>
 
@@ -116,7 +127,15 @@ class BangumiApiServiceImpl(
 
     override suspend fun getSubjectCharacters(id: Long): List<SubjectCharacter> = client.get("$baseUrl/v0/subjects/$id/characters").body()
 
+    override suspend fun getCharacter(id: Long): CharacterDetail = client.get("$baseUrl/v0/characters/$id").body()
+
+    override suspend fun getCharacterSubjects(id: Long): List<RelatedWork> = client.get("$baseUrl/v0/characters/$id/subjects").body()
+
     override suspend fun getSubjectPersons(id: Long): List<SubjectPerson> = client.get("$baseUrl/v0/subjects/$id/persons").body()
+
+    override suspend fun getPerson(id: Long): PersonDetail = client.get("$baseUrl/v0/persons/$id").body()
+
+    override suspend fun getPersonSubjects(id: Long): List<RelatedWork> = client.get("$baseUrl/v0/persons/$id/subjects").body()
 
     override suspend fun getSubjectRelations(id: Long): List<SubjectRelation> = client.get("$baseUrl/v0/subjects/$id/subjects").body()
 

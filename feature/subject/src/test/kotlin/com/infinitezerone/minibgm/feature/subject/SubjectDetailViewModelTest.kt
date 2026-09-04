@@ -1,9 +1,12 @@
 package com.infinitezerone.minibgm.feature.subject
 
 import com.infinitezerone.minibgm.core.common.AppResult
+import com.infinitezerone.minibgm.core.model.CharacterDetail
 import com.infinitezerone.minibgm.core.model.CollectionType
 import com.infinitezerone.minibgm.core.model.CommentUser
 import com.infinitezerone.minibgm.core.model.EpisodeComment
+import com.infinitezerone.minibgm.core.model.PersonDetail
+import com.infinitezerone.minibgm.core.model.RelatedWork
 import com.infinitezerone.minibgm.core.model.SubjectComment
 import com.infinitezerone.minibgm.core.model.SubjectCommentPage
 import com.infinitezerone.minibgm.core.model.SubjectTopic
@@ -401,5 +404,99 @@ class SubjectDetailViewModelTest {
             val state = viewModel.uiState.value
             assertEquals(comments, state.episodeComments[epId])
             assertFalse(state.isEpisodeCommentsLoading)
+        }
+
+    @Test
+    fun loadMoreSubjectComments_appendsNewCommentsAndUpdatesPaginationState() =
+        runTest {
+            val initialComment = SubjectComment(id = 1L, comment = "第一条短评")
+            val nextComment = SubjectComment(id = 2L, comment = "第二条短评")
+            val communityRepo =
+                FakeCommunityRepository().apply {
+                    setSubjectComments(
+                        subjectId = sampleSubject.id,
+                        page = SubjectCommentPage(total = 2, data = listOf(initialComment)),
+                    )
+                }
+
+            val viewModel =
+                SubjectDetailViewModel(
+                    subjectRepository = FakeSubjectRepository(),
+                    subjectId = sampleSubject.id,
+                    communityRepository = communityRepo,
+                )
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(listOf(initialComment), viewModel.uiState.value.subjectComments)
+            assertTrue(viewModel.uiState.value.hasMoreComments)
+
+            // 模拟第二页数据就绪并加载
+            communityRepo.setSubjectComments(
+                subjectId = sampleSubject.id,
+                page = SubjectCommentPage(total = 2, data = listOf(nextComment)),
+            )
+
+            viewModel.loadMoreSubjectComments()
+            testScheduler.advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(2, state.subjectComments.size)
+            assertEquals(listOf(initialComment, nextComment), state.subjectComments)
+            assertFalse(state.isLoadingMoreComments)
+            assertFalse(state.hasMoreComments)
+        }
+
+    @Test
+    fun loadCharacterDetail_populatesCharacterAndWorksState() =
+        runTest {
+            val charId = 123L
+            val charDetail = CharacterDetail(id = charId, name = "フリーレン", summary = "千年精灵魔法使")
+            val works = listOf(RelatedWork(id = 100L, name = "葬送のフリーレン", staff = "主角"))
+            val repository =
+                FakeSubjectRepository().apply {
+                    sendCharacterDetail(charDetail)
+                    sendCharacterSubjects(charId, works)
+                }
+
+            val viewModel = SubjectDetailViewModel(repository, sampleSubject.id)
+            viewModel.loadCharacterDetail(charId)
+            testScheduler.advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(charDetail, state.selectedCharacterDetail)
+            assertEquals(works, state.selectedCharacterWorks)
+            assertFalse(state.isLoadingEntityDetail)
+
+            viewModel.clearEntityDetail()
+            val clearedState = viewModel.uiState.value
+            assertNull(clearedState.selectedCharacterDetail)
+            assertTrue(clearedState.selectedCharacterWorks.isEmpty())
+        }
+
+    @Test
+    fun loadPersonDetail_populatesPersonAndWorksState() =
+        runTest {
+            val personId = 456L
+            val personDetail = PersonDetail(id = personId, name = "種﨑敦美", career = listOf("seiyu"))
+            val works = listOf(RelatedWork(id = 100L, name = "葬送のフリーレン", staff = "声优"))
+            val repository =
+                FakeSubjectRepository().apply {
+                    sendPersonDetail(personDetail)
+                    sendPersonSubjects(personId, works)
+                }
+
+            val viewModel = SubjectDetailViewModel(repository, sampleSubject.id)
+            viewModel.loadPersonDetail(personId)
+            testScheduler.advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(personDetail, state.selectedPersonDetail)
+            assertEquals(works, state.selectedPersonWorks)
+            assertFalse(state.isLoadingEntityDetail)
+
+            viewModel.clearEntityDetail()
+            val clearedState = viewModel.uiState.value
+            assertNull(clearedState.selectedPersonDetail)
+            assertTrue(clearedState.selectedPersonWorks.isEmpty())
         }
 }

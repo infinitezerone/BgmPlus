@@ -5,9 +5,12 @@ import com.infinitezerone.minibgm.core.database.dao.EpisodeDao
 import com.infinitezerone.minibgm.core.database.dao.SubjectDao
 import com.infinitezerone.minibgm.core.database.entity.EpisodeEntity
 import com.infinitezerone.minibgm.core.database.entity.SubjectEntity
+import com.infinitezerone.minibgm.core.model.CharacterDetail
 import com.infinitezerone.minibgm.core.model.CollectionCount
 import com.infinitezerone.minibgm.core.model.Episode
+import com.infinitezerone.minibgm.core.model.PersonDetail
 import com.infinitezerone.minibgm.core.model.Rating
+import com.infinitezerone.minibgm.core.model.RelatedWork
 import com.infinitezerone.minibgm.core.model.Subject
 import com.infinitezerone.minibgm.core.model.SubjectCharacter
 import com.infinitezerone.minibgm.core.model.SubjectImages
@@ -31,7 +34,15 @@ interface SubjectRepository {
 
     suspend fun fetchCharacters(subjectId: Long): AppResult<List<SubjectCharacter>>
 
+    suspend fun fetchCharacterDetail(id: Long): AppResult<CharacterDetail>
+
+    suspend fun fetchCharacterSubjects(id: Long): AppResult<List<RelatedWork>>
+
     suspend fun fetchPersons(subjectId: Long): AppResult<List<SubjectPerson>>
+
+    suspend fun fetchPersonDetail(id: Long): AppResult<PersonDetail>
+
+    suspend fun fetchPersonSubjects(id: Long): AppResult<List<RelatedWork>>
 
     suspend fun fetchRelations(subjectId: Long): AppResult<List<SubjectRelation>>
 }
@@ -213,10 +224,42 @@ class SubjectRepositoryImpl(
             AppResult.Error(e)
         }
 
+    override suspend fun fetchCharacterDetail(id: Long): AppResult<CharacterDetail> =
+        try {
+            val detail = apiService.getCharacter(id)
+            AppResult.Success(detail)
+        } catch (e: Throwable) {
+            AppResult.Error(e)
+        }
+
+    override suspend fun fetchCharacterSubjects(id: Long): AppResult<List<RelatedWork>> =
+        try {
+            val subjects = apiService.getCharacterSubjects(id)
+            AppResult.Success(subjects)
+        } catch (e: Throwable) {
+            AppResult.Error(e)
+        }
+
     override suspend fun fetchPersons(subjectId: Long): AppResult<List<SubjectPerson>> =
         try {
             val response = apiService.getSubjectPersons(subjectId)
             AppResult.Success(response)
+        } catch (e: Throwable) {
+            AppResult.Error(e)
+        }
+
+    override suspend fun fetchPersonDetail(id: Long): AppResult<PersonDetail> =
+        try {
+            val detail = apiService.getPerson(id)
+            AppResult.Success(detail)
+        } catch (e: Throwable) {
+            AppResult.Error(e)
+        }
+
+    override suspend fun fetchPersonSubjects(id: Long): AppResult<List<RelatedWork>> =
+        try {
+            val subjects = apiService.getPersonSubjects(id)
+            AppResult.Success(subjects)
         } catch (e: Throwable) {
             AppResult.Error(e)
         }

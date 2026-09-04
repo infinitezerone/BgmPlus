@@ -61,7 +61,16 @@ class ScheduleRepositoryImplTest {
 
         override suspend fun getSubjectCharacters(id: Long): List<SubjectCharacter> = error("Not implemented")
 
+        override suspend fun getCharacter(id: Long): com.infinitezerone.minibgm.core.model.CharacterDetail = error("Not implemented")
+
+        override suspend fun getCharacterSubjects(id: Long): List<com.infinitezerone.minibgm.core.model.RelatedWork> =
+            error("Not implemented")
+
         override suspend fun getSubjectPersons(id: Long): List<SubjectPerson> = error("Not implemented")
+
+        override suspend fun getPerson(id: Long): com.infinitezerone.minibgm.core.model.PersonDetail = error("Not implemented")
+
+        override suspend fun getPersonSubjects(id: Long): List<com.infinitezerone.minibgm.core.model.RelatedWork> = error("Not implemented")
 
         override suspend fun getSubjectRelations(id: Long): List<SubjectRelation> = error("Not implemented")
 

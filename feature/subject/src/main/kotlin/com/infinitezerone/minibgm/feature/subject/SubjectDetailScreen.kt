@@ -126,6 +126,8 @@ import com.infinitezerone.minibgm.core.model.SubjectTopic
 import com.infinitezerone.minibgm.core.model.SubjectType
 import com.infinitezerone.minibgm.core.model.Tag
 import com.infinitezerone.minibgm.core.model.UserCollection
+import com.infinitezerone.minibgm.feature.subject.components.CharacterDetailBottomSheet
+import com.infinitezerone.minibgm.feature.subject.components.PersonDetailBottomSheet
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import kotlin.math.roundToInt
@@ -176,14 +178,33 @@ fun SubjectDetailScreen(
     viewModel: SubjectDetailViewModel = koinViewModel(parameters = { parametersOf(subjectId) }),
 ) {
     val context = LocalContext.current
-    val handleCharacterClick: (Long) -> Unit =
-        onCharacterClick ?: { characterId ->
-            launchCustomTab(context, "$BGM_BASE_URL/character/$characterId")
+    var activeCharacter by remember { mutableStateOf<SubjectCharacter?>(null) }
+    var activePerson by remember { mutableStateOf<SubjectPerson?>(null) }
+
+    val handleCharacterClick: (Long) -> Unit = { characterId ->
+        if (onCharacterClick != null) {
+            onCharacterClick(characterId)
+        } else {
+            activePerson = null
+            activeCharacter =
+                viewModel.uiState.value.characters
+                    .firstOrNull { it.id == characterId }
+                    ?: SubjectCharacter(id = characterId, name = "")
+            viewModel.loadCharacterDetail(characterId)
         }
-    val handlePersonClick: (Long) -> Unit =
-        onPersonClick ?: { personId ->
-            launchCustomTab(context, "$BGM_BASE_URL/person/$personId")
+    }
+    val handlePersonClick: (Long) -> Unit = { personId ->
+        if (onPersonClick != null) {
+            onPersonClick(personId)
+        } else {
+            activeCharacter = null
+            activePerson =
+                viewModel.uiState.value.persons
+                    .firstOrNull { it.id == personId }
+                    ?: SubjectPerson(id = personId, name = "")
+            viewModel.loadPersonDetail(personId)
         }
+    }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val subjectType =
@@ -532,6 +553,9 @@ fun SubjectDetailScreen(
                                         SubjectCommunitySection(
                                             comments = uiState.subjectComments,
                                             commentTotal = uiState.subjectCommentTotal,
+                                            isLoadingMoreComments = uiState.isLoadingMoreComments,
+                                            hasMoreComments = uiState.hasMoreComments,
+                                            onLoadMoreComments = { viewModel.loadMoreSubjectComments() },
                                             topics = uiState.subjectTopics,
                                         )
                                     }
@@ -586,6 +610,56 @@ fun SubjectDetailScreen(
             onDismiss = { previewCharacter = null },
             onOpenWeb = { characterId ->
                 handleCharacterClick(characterId)
+            },
+        )
+    }
+
+    activeCharacter?.let { character ->
+        CharacterDetailBottomSheet(
+            character = character,
+            detail = uiState.selectedCharacterDetail,
+            relatedWorks = uiState.selectedCharacterWorks,
+            isLoading = uiState.isLoadingEntityDetail,
+            onDismiss = {
+                activeCharacter = null
+                viewModel.clearEntityDetail()
+            },
+            onSubjectClick = { relSubjectId ->
+                activeCharacter = null
+                viewModel.clearEntityDetail()
+                onSubjectClick(relSubjectId)
+            },
+            onActorClick = { actorId ->
+                activeCharacter = null
+                activePerson =
+                    viewModel.uiState.value.persons
+                        .firstOrNull { it.id == actorId }
+                        ?: SubjectPerson(id = actorId, name = "")
+                viewModel.loadPersonDetail(actorId)
+            },
+            onOpenWeb = { characterId ->
+                launchCustomTab(context, "$BGM_BASE_URL/character/$characterId")
+            },
+        )
+    }
+
+    activePerson?.let { person ->
+        PersonDetailBottomSheet(
+            person = person,
+            detail = uiState.selectedPersonDetail,
+            relatedWorks = uiState.selectedPersonWorks,
+            isLoading = uiState.isLoadingEntityDetail,
+            onDismiss = {
+                activePerson = null
+                viewModel.clearEntityDetail()
+            },
+            onSubjectClick = { relSubjectId ->
+                activePerson = null
+                viewModel.clearEntityDetail()
+                onSubjectClick(relSubjectId)
+            },
+            onOpenWeb = { personId ->
+                launchCustomTab(context, "$BGM_BASE_URL/person/$personId")
             },
         )
     }
@@ -2962,10 +3036,15 @@ private fun EpisodeCommentItem(
 private fun SubjectCommunitySection(
     comments: List<SubjectComment>,
     commentTotal: Int,
+    isLoadingMoreComments: Boolean,
+    hasMoreComments: Boolean,
+    onLoadMoreComments: () -> Unit,
     topics: List<SubjectTopic>,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    var isExpanded by rememberSaveable { mutableStateOf(false) }
+    val displayComments = if (isExpanded) comments else comments.take(5)
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -3034,10 +3113,113 @@ private fun SubjectCommunitySection(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        comments.take(5).forEachIndexed { index, comment ->
+                        displayComments.forEachIndexed { index, comment ->
                             SubjectCommentItem(comment = comment)
-                            if (index < comments.take(5).lastIndex) {
+                            if (index < displayComments.lastIndex) {
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                            }
+                        }
+
+                        if (!isExpanded && (comments.size > 5 || commentTotal > 5)) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                            Row(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { isExpanded = true }
+                                        .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "查看更多短评 (已显示 5 / 共 $commentTotal 条)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Icon(
+                                    imageVector = Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        } else if (isExpanded) {
+                            if (hasMoreComments) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                Row(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .clickable(enabled = !isLoadingMoreComments) { onLoadMoreComments() }
+                                            .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    if (isLoadingMoreComments) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "正在加载更多短评...",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "加载更多短评 (已显示 ${comments.size} / 共 $commentTotal 条)",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Filled.KeyboardArrowDown,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    }
+                                }
+                            } else if (comments.size >= commentTotal && commentTotal > 5) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "已显示全部 $commentTotal 条短评",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                            Row(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { isExpanded = false }
+                                        .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "收起短评",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Icon(
+                                    imageVector = Icons.Filled.KeyboardArrowUp,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp),
+                                )
                             }
                         }
                     }
