@@ -41,6 +41,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.infinitezerone.minibgm.core.common.BgmLink
+import com.infinitezerone.minibgm.core.common.BgmUrlParser
 
 /**
  * Bangumi 专用 BBCode 富文本渲染组件
@@ -241,9 +243,15 @@ private fun BgmBbCodeParagraph(
                                     element.isStrikethrough -> TextDecoration.LineThrough
                                     else -> null
                                 }
+                            val isBgmLink = element.url != null && BgmUrlParser.parse(element.url) !is BgmLink.External
                             withStyle(
                                 SpanStyle(
-                                    fontWeight = if (element.isBold) FontWeight.Bold else null,
+                                    fontWeight =
+                                        when {
+                                            element.isBold -> FontWeight.Bold
+                                            isBgmLink -> FontWeight.SemiBold
+                                            else -> null
+                                        },
                                     fontStyle = if (element.isItalic) FontStyle.Italic else null,
                                     textDecoration = textDecorations,
                                     color = if (element.url != null) primaryColor else Color.Unspecified,

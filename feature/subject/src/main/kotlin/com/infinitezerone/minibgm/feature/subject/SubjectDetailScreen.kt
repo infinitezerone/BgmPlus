@@ -105,6 +105,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.infinitezerone.minibgm.core.common.BgmLink
+import com.infinitezerone.minibgm.core.common.BgmUrlParser
 import com.infinitezerone.minibgm.core.common.TimeUtils
 import com.infinitezerone.minibgm.core.designsystem.component.CoverImage
 import com.infinitezerone.minibgm.core.designsystem.component.bbcode.BgmBbCodeContent
@@ -214,6 +216,34 @@ fun SubjectDetailScreen(
     var selectedEpisodeForDetail by remember { mutableStateOf<Episode?>(null) }
     var previewCharacter by remember { mutableStateOf<SubjectCharacter?>(null) }
     var selectedTab by rememberSaveable { mutableStateOf(SubjectDetailTab.EPISODES) }
+
+    val handleLinkClick: (String) -> Unit = { url ->
+        when (val link = BgmUrlParser.parse(url)) {
+            is BgmLink.Subject -> {
+                selectedEpisodeForDetail = null
+                onSubjectClick(link.subjectId)
+            }
+            is BgmLink.Character -> {
+                selectedEpisodeForDetail = null
+                handleCharacterClick(link.characterId)
+            }
+            is BgmLink.Person -> {
+                selectedEpisodeForDetail = null
+                handlePersonClick(link.personId)
+            }
+            is BgmLink.Episode -> {
+                val ep = uiState.episodes.firstOrNull { it.id == link.episodeId }
+                if (ep != null) {
+                    selectedEpisodeForDetail = ep
+                } else {
+                    launchCustomTab(context, url)
+                }
+            }
+            is BgmLink.Topic -> launchCustomTab(context, url)
+            is BgmLink.User -> launchCustomTab(context, url)
+            is BgmLink.External -> launchCustomTab(context, url)
+        }
+    }
 
     LaunchedEffect(subjectType, uiState.episodes) {
         if (subjectType == SubjectType.GAME && uiState.episodes.isEmpty()) {
@@ -555,6 +585,7 @@ fun SubjectDetailScreen(
                                             hasMoreComments = uiState.hasMoreComments,
                                             onLoadMoreComments = { viewModel.loadMoreSubjectComments() },
                                             topics = uiState.subjectTopics,
+                                            onUrlClick = handleLinkClick,
                                         )
                                     }
                                 }
@@ -595,6 +626,7 @@ fun SubjectDetailScreen(
                 val epNumber = if (episode.ep > 0f) episode.ep.toInt() else episode.sort.toInt()
                 viewModel.toggleEpisodeWatched(episode.id, watched, epNumber)
             },
+            onUrlClick = handleLinkClick,
         )
     }
 
@@ -2501,6 +2533,7 @@ private fun EpisodeDetailBottomSheet(
     onLoadComments: () -> Unit,
     onDismiss: () -> Unit,
     onToggleWatched: (episode: Episode, isWatched: Boolean) -> Unit,
+    onUrlClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
@@ -2704,6 +2737,7 @@ private fun EpisodeDetailBottomSheet(
                 episode = episode,
                 comments = comments,
                 isLoading = isLoadingComments,
+                onUrlClick = onUrlClick,
             )
         }
     }
@@ -2716,6 +2750,7 @@ private fun EpisodeCommentsSection(
     episode: Episode,
     comments: List<EpisodeComment>,
     isLoading: Boolean,
+    onUrlClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2797,7 +2832,10 @@ private fun EpisodeCommentsSection(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 comments.forEach { comment ->
-                    EpisodeCommentItem(comment = comment)
+                    EpisodeCommentItem(
+                        comment = comment,
+                        onUrlClick = onUrlClick,
+                    )
                 }
             }
         }
@@ -2809,6 +2847,7 @@ private fun EpisodeCommentsSection(
 @Composable
 private fun EpisodeCommentItem(
     comment: EpisodeComment,
+    onUrlClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2824,29 +2863,34 @@ private fun EpisodeCommentItem(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                AsyncImage(
-                    model =
-                        comment.user
-                            ?.avatar
-                            ?.bestAvatar
-                            .orEmpty(),
-                    contentDescription = comment.user?.displayName,
-                    modifier =
-                        Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                )
-                Text(
-                    text = comment.user?.displayName ?: "用户",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(modifier = Modifier.weight(1f))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AsyncImage(
+                        model =
+                            comment.user
+                                ?.avatar
+                                ?.bestAvatar,
+                        contentDescription = comment.user?.displayName,
+                        modifier =
+                            Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    )
+                    Text(
+                        text = comment.user?.displayName ?: "用户",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
                 if (comment.createdAt > 0) {
                     Text(
                         text = TimeUtils.formatEpochSecondsToDate(comment.createdAt),
@@ -2860,7 +2904,7 @@ private fun EpisodeCommentItem(
                 content = comment.content,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
-                onUrlClick = { url -> launchCustomTab(context, url) },
+                onUrlClick = onUrlClick,
             )
 
             // 点赞反应
@@ -2927,7 +2971,7 @@ private fun EpisodeCommentItem(
                                     content = reply.content,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface,
-                                    onUrlClick = { url -> launchCustomTab(context, url) },
+                                    onUrlClick = onUrlClick,
                                 )
                             }
                         }
@@ -2947,6 +2991,7 @@ private fun SubjectCommunitySection(
     hasMoreComments: Boolean,
     onLoadMoreComments: () -> Unit,
     topics: List<SubjectTopic>,
+    onUrlClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -3021,7 +3066,10 @@ private fun SubjectCommunitySection(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         displayComments.forEachIndexed { index, comment ->
-                            SubjectCommentItem(comment = comment)
+                            SubjectCommentItem(
+                                comment = comment,
+                                onUrlClick = onUrlClick,
+                            )
                             if (index < displayComments.lastIndex) {
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
                             }
@@ -3217,6 +3265,7 @@ private fun SubjectCommunitySection(
 @Composable
 private fun SubjectCommentItem(
     comment: SubjectComment,
+    onUrlClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -3280,12 +3329,11 @@ private fun SubjectCommentItem(
         }
 
         if (comment.comment.isNotBlank()) {
-            val context = LocalContext.current
             BgmBbCodeContent(
                 content = comment.comment,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                onUrlClick = { url -> launchCustomTab(context, url) },
+                onUrlClick = onUrlClick,
             )
         }
     }

@@ -112,4 +112,47 @@ class BgmBbCodeParserTest {
         assertEquals(1, unclosedBlocks.size)
         assertTrue(unclosedBlocks[0] is BbCodeBlock.Paragraph)
     }
+
+    @Test
+    fun parseParagraph_autolinksRawUrls_andFormatsBangumiLabels() {
+        val input = "大家可以看 https://bgm.tv/subject/328793。还有角色 https://bgm.tv/character/12345 很棒"
+        val paragraph = BgmBbCodeParser.parseParagraph(input)
+
+        val styled = paragraph.elements.filterIsInstance<BbInlineElement.Styled>()
+        assertEquals(2, styled.size)
+
+        assertEquals("条目 #328793", styled[0].text)
+        assertEquals("https://bgm.tv/subject/328793", styled[0].url)
+        assertTrue(styled[0].isUnderline)
+
+        assertEquals("角色 #12345", styled[1].text)
+        assertEquals("https://bgm.tv/character/12345", styled[1].url)
+
+        val plains = paragraph.elements.filterIsInstance<BbInlineElement.Plain>()
+        assertTrue(plains.any { it.text.contains("。还有角色 ") })
+    }
+
+    @Test
+    fun parseParagraph_bbcodeUrl_formatsBangumiLinkIfNotCustom() {
+        val tagWithoutCustomTitle = "[url]https://bangumi.tv/person/6789[/url]"
+        val paragraph1 = BgmBbCodeParser.parseParagraph(tagWithoutCustomTitle)
+        val styled1 = paragraph1.elements.filterIsInstance<BbInlineElement.Styled>().first()
+        assertEquals("人物 #6789", styled1.text)
+        assertEquals("https://bangumi.tv/person/6789", styled1.url)
+
+        val tagWithCustomTitle = "[url=https://bgm.tv/subject/328793]葬送的芙莉莲[/url]"
+        val paragraph2 = BgmBbCodeParser.parseParagraph(tagWithCustomTitle)
+        val styled2 = paragraph2.elements.filterIsInstance<BbInlineElement.Styled>().first()
+        assertEquals("葬送的芙莉莲", styled2.text)
+        assertEquals("https://bgm.tv/subject/328793", styled2.url)
+    }
+
+    @Test
+    fun parseParagraph_autolinksExternalUrls_preservesRawUrl() {
+        val input = "访问 https://github.com 查看源码"
+        val paragraph = BgmBbCodeParser.parseParagraph(input)
+        val styled = paragraph.elements.filterIsInstance<BbInlineElement.Styled>().first()
+        assertEquals("https://github.com", styled.text)
+        assertEquals("https://github.com", styled.url)
+    }
 }

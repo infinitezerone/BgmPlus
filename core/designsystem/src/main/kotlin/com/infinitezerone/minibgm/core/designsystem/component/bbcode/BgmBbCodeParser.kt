@@ -1,5 +1,8 @@
 package com.infinitezerone.minibgm.core.designsystem.component.bbcode
 
+import com.infinitezerone.minibgm.core.common.BgmLink
+import com.infinitezerone.minibgm.core.common.BgmUrlParser
+
 /**
  * Bangumi 块级语法树节点
  */
@@ -214,12 +217,37 @@ object BgmBbCodeParser {
         return BbCodeBlock.Paragraph(rawText = cleanParagraph, elements = elements)
     }
 
+    private val RAW_URL_REGEX = Regex("""https?://[a-zA-Z0-9_\-.~:/?#@!$&*+,;%=]+""")
+    private val TRAILING_PUNCTUATION =
+        charArrayOf(
+            '.',
+            ',',
+            '!',
+            '?',
+            ';',
+            ':',
+            ')',
+            ']',
+            '}',
+            '。',
+            '，',
+            '！',
+            '？',
+            '；',
+            '：',
+            '）',
+            '」',
+            '』',
+            '”',
+            '’',
+        )
+
     /**
-     * 解析基础格式化标签：[b], [i], [s], [u], [url]
+     * 解析基础格式化标签：[b], [i], [s], [u], [url] 以及裸 URL 链接识别
      */
     private fun parseFormattedText(text: String): List<BbInlineElement> {
         if (!text.contains('[') || !text.contains(']')) {
-            return listOf(BbInlineElement.Plain(text))
+            return parsePlainAndRawUrls(text)
         }
 
         val results = mutableListOf<BbInlineElement>()
@@ -232,7 +260,7 @@ object BgmBbCodeParser {
             if (range.first > currentIndex) {
                 val plainPart = text.substring(currentIndex, range.first)
                 if (plainPart.isNotEmpty()) {
-                    results.add(BbInlineElement.Plain(plainPart))
+                    results.addAll(parsePlainAndRawUrls(plainPart))
                 }
             }
 
@@ -259,11 +287,78 @@ object BgmBbCodeParser {
                 }
                 "url" -> {
                     val url = tagArg?.ifBlank { null } ?: innerContent.trim()
-                    results.add(BbInlineElement.Styled(text = innerContent, url = url, isUnderline = true))
+                    val isRawUrlDisplay = tagArg == null || innerContent.trim().equals(url, ignoreCase = true)
+                    val displayText =
+                        if (isRawUrlDisplay) {
+                            val link = BgmUrlParser.parse(url)
+                            if (link !is BgmLink.External) {
+                                BgmUrlParser.formatDisplayLabel(link)
+                            } else {
+                                innerContent
+                            }
+                        } else {
+                            innerContent
+                        }
+                    results.add(BbInlineElement.Styled(text = displayText, url = url, isUnderline = true))
                 }
                 else -> {
                     results.add(BbInlineElement.Plain(innerContent))
                 }
+            }
+
+            currentIndex = range.last + 1
+        }
+
+        if (currentIndex < text.length) {
+            val remaining = text.substring(currentIndex)
+            if (remaining.isNotEmpty()) {
+                results.addAll(parsePlainAndRawUrls(remaining))
+            }
+        }
+
+        return if (results.isEmpty()) listOf(BbInlineElement.Plain(text)) else results
+    }
+
+    /**
+     * 解析普通文本段落中的裸 URL（Autolink），并自动美化 Bangumi 内部链接文案
+     */
+    private fun parsePlainAndRawUrls(text: String): List<BbInlineElement> {
+        if (!text.contains("http://", ignoreCase = true) && !text.contains("https://", ignoreCase = true)) {
+            return if (text.isNotEmpty()) listOf(BbInlineElement.Plain(text)) else emptyList()
+        }
+
+        val results = mutableListOf<BbInlineElement>()
+        var currentIndex = 0
+        val matches = RAW_URL_REGEX.findAll(text)
+
+        for (match in matches) {
+            val range = match.range
+            if (range.first > currentIndex) {
+                val plainBefore = text.substring(currentIndex, range.first)
+                if (plainBefore.isNotEmpty()) {
+                    results.add(BbInlineElement.Plain(plainBefore))
+                }
+            }
+
+            var rawUrl = match.value
+            var trailingPunct = ""
+            while (rawUrl.isNotEmpty() && rawUrl.last() in TRAILING_PUNCTUATION) {
+                trailingPunct = rawUrl.last() + trailingPunct
+                rawUrl = rawUrl.dropLast(1)
+            }
+
+            if (rawUrl.isNotEmpty()) {
+                val link = BgmUrlParser.parse(rawUrl)
+                val displayText =
+                    if (link !is BgmLink.External) {
+                        BgmUrlParser.formatDisplayLabel(link)
+                    } else {
+                        rawUrl
+                    }
+                results.add(BbInlineElement.Styled(text = displayText, url = rawUrl, isUnderline = true))
+            }
+            if (trailingPunct.isNotEmpty()) {
+                results.add(BbInlineElement.Plain(trailingPunct))
             }
 
             currentIndex = range.last + 1
