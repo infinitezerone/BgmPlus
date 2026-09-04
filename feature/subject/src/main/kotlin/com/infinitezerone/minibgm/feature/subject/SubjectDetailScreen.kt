@@ -3106,7 +3106,7 @@ private fun SubjectCommunitySection(
                         topics.take(6).forEachIndexed { index, topic ->
                             SubjectTopicItem(
                                 topic = topic,
-                                onClick = { launchCustomTab(context, "$BGM_BASE_URL/group/topic/${topic.id}") },
+                                onClick = { launchCustomTab(context, "$BGM_BASE_URL/subject/topic/${topic.id}") },
                             )
                             if (index < topics.take(6).lastIndex) {
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
