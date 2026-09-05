@@ -56,8 +56,8 @@ jobs:
             echo "SIGNING_KEYSTORE_BASE64 not set, release falls back to debug signing"
           fi
 
-      - name: Build APKs
-        run: ./gradlew assembleDebug assembleRelease --stacktrace
+      - name: Build APK
+        run: ./gradlew assembleRelease --stacktrace
 
       - name: Rename APK for Release
         run: |
@@ -66,9 +66,6 @@ jobs:
             cp app/build/outputs/apk/release/app-release-unsigned.apk release-artifacts/MiniBgm-${{ github.ref_name }}-release-unsigned.apk
           elif [ -f app/build/outputs/apk/release/app-release.apk ]; then
             cp app/build/outputs/apk/release/app-release.apk release-artifacts/MiniBgm-${{ github.ref_name }}-release.apk
-          fi
-          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/MiniBgm-${{ github.ref_name }}-debug.apk
           fi
 
       - name: Create GitHub Release
