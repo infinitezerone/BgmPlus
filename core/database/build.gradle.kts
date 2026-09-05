@@ -1,12 +1,12 @@
-import com.infinitezerone.bgmplus.kmpAndroidLibrary
+import com.infinitezerone.minibgm.kmpAndroidLibrary
 
 plugins {
-    alias(libs.plugins.bgmplus.kmp.library)
-    alias(libs.plugins.bgmplus.kmp.room)
+    alias(libs.plugins.minibgm.kmp.library)
+    alias(libs.plugins.minibgm.kmp.room)
 }
 
 kmpAndroidLibrary {
-    namespace = "com.infinitezerone.bgmplus.core.database"
+    namespace = "com.infinitezerone.minibgm.core.database"
 }
 
 kotlin {

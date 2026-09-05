@@ -22,9 +22,11 @@ desugar-jdk-libs = "2.1.5"
 junit = "4.13.2"
 androidx-navigation3 = "1.1.7"
 androidxWork = "2.10.0"
+androidx-core-splashscreen = "1.0.1"
 
 [libraries]
 android-desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar-jdk-libs" }
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "androidx-core-splashscreen" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core-ktx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "androidx-lifecycle" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
@@ -102,12 +104,12 @@ spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 
 
 
-# BgmPlus Custom Convention Plugins
-bgmplus-kmp-library = { id = "bgmplus.kmp.library", version = "unspecified" }
-bgmplus-kmp-room = { id = "bgmplus.kmp.room", version = "unspecified" }
-bgmplus-android-application = { id = "bgmplus.android.application", version = "unspecified" }
-bgmplus-android-application-compose = { id = "bgmplus.android.application.compose", version = "unspecified" }
-bgmplus-android-library = { id = "bgmplus.android.library", version = "unspecified" }
-bgmplus-android-library-compose = { id = "bgmplus.android.library.compose", version = "unspecified" }
-bgmplus-android-feature = { id = "bgmplus.android.feature", version = "unspecified" }
+# MiniBgm Custom Convention Plugins
+minibgm-kmp-library = { id = "minibgm.kmp.library", version = "unspecified" }
+minibgm-kmp-room = { id = "minibgm.kmp.room", version = "unspecified" }
+minibgm-android-application = { id = "minibgm.android.application", version = "unspecified" }
+minibgm-android-application-compose = { id = "minibgm.android.application.compose", version = "unspecified" }
+minibgm-android-library = { id = "minibgm.android.library", version = "unspecified" }
+minibgm-android-library-compose = { id = "minibgm.android.library.compose", version = "unspecified" }
+minibgm-android-feature = { id = "minibgm.android.feature", version = "unspecified" }
 

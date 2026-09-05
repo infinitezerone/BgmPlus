@@ -30,8 +30,8 @@
 正式版本尚未发布。当前可通过源码自行构建（需要 JDK 25 与 Android SDK）：
 
 ```bash
-git clone https://github.com/infinitezerone/BgmPlus.git
-cd BgmPlus
+git clone https://github.com/infinitezerone/MiniBgm.git
+cd MiniBgm
 ./gradlew :app:assembleDebug
 # 产物：app/build/outputs/apk/debug/app-debug.apk
 ```

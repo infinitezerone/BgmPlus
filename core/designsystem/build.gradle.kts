@@ -1,11 +1,11 @@
-import com.infinitezerone.bgmplus.androidLibrary
+import com.infinitezerone.minibgm.androidLibrary
 
 plugins {
-    alias(libs.plugins.bgmplus.android.library.compose)
+    alias(libs.plugins.minibgm.android.library.compose)
 }
 
 androidLibrary {
-    namespace = "com.infinitezerone.bgmplus.core.designsystem"
+    namespace = "com.infinitezerone.minibgm.core.designsystem"
 }
 
 dependencies {
@@ -15,6 +15,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(project(":core:common"))
     implementation(libs.coil.compose)
     implementation(libs.coil.network.ktor3)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test)
 }

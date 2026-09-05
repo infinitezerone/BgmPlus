@@ -2,11 +2,11 @@
 # （kotlinx-serialization 自带 consumer rules，以下为官方推荐的兜底规则）
 -keepattributes *Annotation*, InnerClasses, Signature
 -dontnote kotlinx.serialization.**
--keep,includedescriptorclasses class com.infinitezerone.bgmplus.**$$serializer { *; }
--keepclassmembers class com.infinitezerone.bgmplus.** {
+-keep,includedescriptorclasses class com.infinitezerone.minibgm.**$$serializer { *; }
+-keepclassmembers class com.infinitezerone.minibgm.** {
     *** Companion;
 }
--keepclasseswithmembers class com.infinitezerone.bgmplus.** {
+-keepclasseswithmembers class com.infinitezerone.minibgm.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 

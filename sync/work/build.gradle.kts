@@ -1,9 +1,12 @@
 plugins {
-    alias(libs.plugins.bgmplus.android.library)
+    alias(libs.plugins.minibgm.android.library)
 }
 
 android {
-    namespace = "com.infinitezerone.bgmplus.sync.work"
+    namespace = "com.infinitezerone.minibgm.sync.work"
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
