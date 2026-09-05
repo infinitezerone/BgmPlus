@@ -33,6 +33,29 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # 正式签名：从 Actions secrets 还原 keystore 与 keystore.properties；
+      # secrets 未配置时跳过，release 回退 debug 签名（与本地构建行为一致）
+      - name: Restore signing keystore
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          if [ -n "$SIGNING_KEYSTORE_BASE64" ]; then
+            mkdir -p keystore
+            echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > keystore/minibgm-release.jks
+            cat > keystore.properties <<EOF
+          storeFile=keystore/minibgm-release.jks
+          storePassword=$SIGNING_STORE_PASSWORD
+          keyAlias=$SIGNING_KEY_ALIAS
+          keyPassword=$SIGNING_KEY_PASSWORD
+          EOF
+            echo "keystore restored"
+          else
+            echo "SIGNING_KEYSTORE_BASE64 not set, release falls back to debug signing"
+          fi
+
       - name: Build APKs
         run: ./gradlew assembleDebug assembleRelease --stacktrace
 
@@ -40,12 +63,12 @@ jobs:
         run: |
           mkdir -p release-artifacts
           if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk release-artifacts/BgmPlus-${{ github.ref_name }}-release-unsigned.apk
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release-artifacts/MiniBgm-${{ github.ref_name }}-release-unsigned.apk
           elif [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk release-artifacts/BgmPlus-${{ github.ref_name }}-release.apk
+            cp app/build/outputs/apk/release/app-release.apk release-artifacts/MiniBgm-${{ github.ref_name }}-release.apk
           fi
           if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/BgmPlus-${{ github.ref_name }}-debug.apk
+            cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/MiniBgm-${{ github.ref_name }}-debug.apk
           fi
 
       - name: Create GitHub Release
