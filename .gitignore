@@ -11,4 +11,6 @@ captures/
 *.apk
 *.aab
 .kotlin/
+keystore/
+keystore.properties
 
